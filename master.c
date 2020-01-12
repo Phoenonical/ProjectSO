@@ -110,7 +110,7 @@ int main(){
 	/* Re-using the old semaphores */
 	init_Sem(SemID, 0, 0); /* Make players take turns */
 	init_Sem(SemID, 1, 0); /* After a player has finished their turn, it'll wait for the rest */
-	init_Sem(SemID, 2, 1);
+	init_Sem(SemID, 2, 1); /* Signaling */
 
 
 	PlaceFlags(); /* Place down flags on the board */
@@ -129,8 +129,8 @@ int main(){
 		/*lock_Sem(SemID,0);*/ /* Pawns may not be placed until semaphore reset has been locked */
 		init_Sem(SemID,0,0);
 		Log("Semaphore has been reset")
-	/*	sleep(1);*/
-		BuildPlayingField();
+		sleep(1);
+	BuildPlayingField();
 		release_Sem(SemID,0); /* Players may place pawns again */
 	}
 
@@ -306,10 +306,11 @@ void handle_signal(int signal){
 		if(NumFlags==0){
 			PlaceFlags();
 			ROUND++;
-			/*BuildPlayingField();*/
+			BuildPlayingField();
 		}
 
 		for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR1);
+		lock_Sem(SemID,2,0);
 
 	}
 

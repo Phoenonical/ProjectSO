@@ -31,12 +31,12 @@ int ChessboardSemaphoresID;
 int MessageQueueID;
 int ScoreTableID;
 int CheckforClosest=1;
+int ID;
 
 
 int main(int argc, char *argv[]){
   int i,j;
   int shmID;
-  int ID;
   struct sigaction sa; /* Structure for later signal catching */
   myTurn=atoi(argv[1]);
   TOT_PLAYERS=ConfigParser("./Settings.conf", "TOT_PLAYERS");
@@ -46,7 +46,7 @@ int main(int argc, char *argv[]){
 	MAX_HEIGHT=ConfigParser("./Settings.conf", "MAX_HEIGHT");
 	MAX_FLAGS=ConfigParser("./Settings.conf", "MAX_FLAGS");
 	MIN_FLAGS=ConfigParser("./Settings.conf", "MIN_FLAGS");
-  /* Set a 1 int size buffer for communication */
+
   MessageQueueID = SharedMemID(ftok("./pawn",65), sizeof(struct Message));
   MessageBuffer = AttachMem(MessageQueueID);
   MessageSemaphoreID = Semaphore(ftok("./pawn",myTurn), TOT_PAWNS);
@@ -66,10 +66,6 @@ int main(int argc, char *argv[]){
 
   signal(SIGUSR1,handle_signal);
 
-  /*for(i = 0; i<NSIG; i++){
-    if(sigaction(i, &sa, NULL)==-1)
-      Logn("Cannot set a user-defined handler for Signal",i);
-  }*/
 
 
   myPID=getpid();
@@ -113,6 +109,7 @@ int main(int argc, char *argv[]){
 
     /*lock_Sem(ID, 0);*/
     Logn("Player's turn", myPID);
+    /*printf("Player turn %d\n", myTurn);*/
     /*printf("Player's turn %d\n", myPID);*/
     Wait(1);
     InteractwPawn();
@@ -120,7 +117,7 @@ int main(int argc, char *argv[]){
 
     release_Sem(ID, 0);
     Logn("Incremented Semaphore",semctl(ID, 0, GETVAL));
-
+    /*printf("Player %d is waiting\n", myTurn);*/
     wait_Sem(ID,0);
 
     /*lock_Sem(ID, 0);
@@ -138,11 +135,14 @@ int main(int argc, char *argv[]){
 void InteractwPawn(){
  char Moved=0;
  if(CheckforClosest){
+   /*printf("Checking for closest, turn %d\n",myTurn);*/
    MyTarget = FindClosest();
    CheckforClosest=0;
   }
 
  Logn("Distance Target", MyTarget.Distance);
+
+ /*printf("Distance target: %d\n", MyTarget.Distance);*/
 
  if((MyTarget.DestinationRow>MyTarget.SourceRow) && MyTarget.SourceRow<MAX_HEIGHT){if(Move(GOUP,MyTarget.PawnTurn)!=-1) Moved=1;}
  if(MyTarget.DestinationRow<MyTarget.SourceRow && Moved==0 && MyTarget.SourceRow>0){if(Move(GODOWN,MyTarget.PawnTurn)!=-1) Moved=1;}
@@ -163,7 +163,10 @@ int Move(int Direction, int Index){
   /* Trying to tell my pawn to move */
   /*printf("index %d\n", Index);*/
   Logn("Sending move order to",myPawns[Index]);
-  /*printf("Sending move order to %d\n", myPawns[Index]);*/
+  printf("Sending move order to %d\n", myPawns[Index]);
+  printf("Source Row: %d, Col: %d\n", MyTarget.SourceRow, MyTarget.SourceCol);
+  printf("Destination Row: %d, Col: %d\n", MyTarget.DestinationRow, MyTarget.DestinationCol);
+  printf("Direction: %d\n", Direction);
   MessageBuffer->mtype=1; /* 1 is: command */
   /*printf("(player-move) type modified %d\n", MessageBuffer->mtype);*/
   MessageBuffer->message.command=Direction; /* Giving a direction */
@@ -249,6 +252,7 @@ struct Distance FindClosest(){
   /*  printf("I is %d\n",i);*/
     /*printf("Semaphore is %d\n", semctl(MessageSemaphoreID, 0, GETVAL));*/
     init_Sem(MessageSemaphoreID,i,1);
+    /*printf("Turn is %d, PawnPID is %d\n",i,myPawns[i]);*/
     kill(myPawns[i],SIGUSR2); /* Why is it called "Kill"? I'm not killing my process */
     /*sleep(1);*/
     /*printf("Later Semaphore is %d\n", semctl(MessageSemaphoreID, i, GETVAL));*/
@@ -283,6 +287,8 @@ void handle_signal(int signal){
   exit(EXIT_SUCCESS);
   }
   if(signal==SIGUSR1){
+    if(buff[MyTarget.DestinationRow*MAX_WIDTH+MyTarget.DestinationCol].Symbol!='F')
     CheckforClosest=1;
+    lock_Sem(ID,2,0);
   }
 }
