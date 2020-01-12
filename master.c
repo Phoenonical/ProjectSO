@@ -131,37 +131,11 @@ int main(){
 		/*lock_Sem(SemID,0);*/ /* Pawns may not be placed until semaphore reset has been locked */
 		init_Sem(SemID,0,0);
 		Log("Semaphore has been reset")
-		/*sleep(1);
-	BuildPlayingField();*/
+		/*sleep(1);*/
+	/*BuildPlayingField();*/
 		release_Sem(SemID,0); /* Players may place pawns again */
 	}
 
-
-	Log("Removing semaphore in 60 seconds..");
-	sleep(60);
-	remove_Sem(SemID);
-
-#ifdef DEBUG
-	for(i=0;i<MAX_HEIGHT;i++){
-		for(j=0;j<MAX_WIDTH;j++){
-			if(buff[i*MAX_WIDTH+j].Symbol == 'P')
-			printf("%d ", buff[i*MAX_WIDTH+j].Att.pawn.PIDParent);
-			else
-			printf("%d ", 0);
-		}
-		printf("\n");
-	}printf("\n");
-
-	for(i=0;i<MAX_HEIGHT;i++){
-		for(j=0;j<MAX_WIDTH;j++){
-			if(buff[i*MAX_WIDTH+j].Symbol == 'P')
-			printf("%d ", buff[i*MAX_WIDTH+j].Att.pawn.PIDPawn);
-			else
-			printf("%d ", 0);
-		}
-		printf("\n");
-	}
-#endif
 
 	Terminate(); /* Kill off any players and deallocate SHMs and semaphores */
 

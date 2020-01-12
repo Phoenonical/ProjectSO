@@ -50,7 +50,7 @@ int main(int argc, char *argv[]){
   MessageQueueID = SharedMemID(ftok("./pawn",65), sizeof(struct Message));
   MessageBuffer = AttachMem(MessageQueueID);
   MessageSemaphoreID = Semaphore(ftok("./pawn",myTurn), TOT_PAWNS);
-  for(i=0;i<TOT_PAWNS;i++) init_Sem(MessageSemaphoreID,i,1); /* For Message reading */
+  for(i=0;i<TOT_PAWNS;i++) init_Sem(MessageSemaphoreID,i,0); /* For Message reading */
   ChessboardSemaphoresID = Semaphore(ftok("./master.c",64),MAX_HEIGHT*MAX_WIDTH);
   ScoreTableID = SharedMemID(ftok("./master",1),sizeof(struct Scoreboard)*TOT_PLAYERS);
   ScoreTable = AttachMem(ScoreTableID);
@@ -150,6 +150,7 @@ void InteractwPawn(){
  if(MyTarget.DestinationCol<MyTarget.SourceCol && Moved==0 && MyTarget.SourceCol>0){if(Move(GOLEFT,MyTarget.PawnTurn)!=-1){MyTarget.SourceCol--; Moved=1;}}
  if(Moved==0){ /* Can't move */
  printf("Can't move\n");
+  CheckforClosest;
     /* Let's force a poor pawn to move at random */
   /* time_t t;
    srand((unsigned) time(&t));
@@ -164,19 +165,20 @@ int Move(int Direction, int Index){
   /* Trying to tell my pawn to move */
   /*printf("index %d\n", Index);*/
   Logn("Sending move order to",myPawns[Index]);
-  printf("Sending move order to %d\n", myPawns[Index]);
+/*  printf("Sending move order to %d\n", myPawns[Index]);
   printf("Source Row: %d, Col: %d\n", MyTarget.SourceRow, MyTarget.SourceCol);
   printf("Destination Row: %d, Col: %d\n", MyTarget.DestinationRow, MyTarget.DestinationCol);
-  printf("Direction: %d\n", Direction);
+  printf("Direction: %d\n", Direction);*/
   MessageBuffer->mtype=1; /* 1 is: command */
   /*printf("(player-move) type modified %d\n", MessageBuffer->mtype);*/
   MessageBuffer->message.command=Direction; /* Giving a direction */
   /*release_Sem(MessageSemaphoreID,i);*/ /* Pawn may read and write to buffer */
-  init_Sem(MessageSemaphoreID,Index,1);
-  kill(myPawns[Index],SIGUSR2); /* Why is it called "Kill"? I'm not killing my process */
+  /*init_Sem(MessageSemaphoreID,Index,1);*/
+/*  kill(myPawns[Index],SIGUSR2);*/ /* Why is it called "Kill"? I'm not killing my process */
   /*lock_Sem(MessageSemaphoreID,Index,0);*/
-  wait_Sem(MessageSemaphoreID,Index);
-  printf("Done waiting %d\n",myPawns[Index]);
+  /*wait_Sem(MessageSemaphoreID,Index);*/
+  init_Sem(MessageSemaphoreID,Index,0);
+  lock_Sem(MessageSemaphoreID,Index,0);
   /*init_Sem(MessageSemaphoreID,Index,1);*/
 
   return MessageBuffer->mtype;
@@ -253,16 +255,20 @@ struct Distance FindClosest(){
     /*release_Sem(MessageSemaphoreID,i);*/ /* Pawn may read and write to buffer */
   /*  printf("I is %d\n",i);*/
     /*printf("Semaphore is %d\n", semctl(MessageSemaphoreID, 0, GETVAL));*/
-    init_Sem(MessageSemaphoreID,i,1);
+    /*init_Sem(MessageSemaphoreID,i,1);*/
     /*printf("Turn is %d, PawnPID is %d\n",i,myPawns[i]);*/
-    kill(myPawns[i],SIGUSR2); /* Why is it called "Kill"? I'm not killing my process */
+    /*kill(myPawns[i],SIGUSR2);*/ /* Why is it called "Kill"? I'm not killing my process */
     /*sleep(1);*/
     /*printf("Later Semaphore is %d\n", semctl(MessageSemaphoreID, i, GETVAL));*/
-    wait_Sem(MessageSemaphoreID,i); /* I hate this part */
+    /*wait_Sem(MessageSemaphoreID,i); *//* I hate this part */
     /*printf("Laterer Semaphore is %d\n", semctl(MessageSemaphoreID, i, GETVAL));*/
     /*sleep(1);*/
     /*while(!compare_Sem(MessageSemaphoreID,i,1));*/ /* Wait until pawn is done writing */
     /*lock_Sem(MessageSemaphoreID,i);*/ /* Block the pawn from reading again */
+    init_Sem(MessageSemaphoreID,i,0);
+    lock_Sem(MessageSemaphoreID,i,0);
+
+
     if(MessageBuffer->mtype==2)
     if(closest.Distance>MessageBuffer->message.Loc.Distance){
       closest.Distance=MessageBuffer->message.Loc.Distance;
@@ -271,7 +277,7 @@ struct Distance FindClosest(){
       closest.SourceRow=MessageBuffer->message.Loc.SourceRow;
       closest.SourceCol=MessageBuffer->message.Loc.SourceCol;
       closest.PawnTurn=i;
-    }else; else{printf("ERROR: (Player) Message error message type is %d\n",MessageBuffer->mtype); sleep(3);}
+    }else; /*else{printf("ERROR: (Player) Message error message type is %d\n",MessageBuffer->mtype); sleep(3);}*/
   }
   /*printf("Distance %d\n", closest.Distance);*/
   return closest;

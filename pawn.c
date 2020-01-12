@@ -50,7 +50,7 @@ int main(int argc, char* argv[]){
   myTurn = atoi(argv[3]);
   PlrTurn = atoi(argv[4]);
   PawnPID = getpid();
-  ParentPID=getppid();
+  ParentPID = getppid();
 
   /*printf("PawnPID: %d, argc: %d\n",getpid(), argc);
   printf("Col %d\n", PawnCol);
@@ -86,7 +86,9 @@ int main(int argc, char* argv[]){
     /*printf("Pawn waiting: %d\n", PawnPID);*/
     /*printf("Sending type %d\n", MessageBuffer->mtype);*/
     /*printf("Semaphore in pawn is %d\n", semctl(MessageSemaphoreID, myTurn, GETVAL));*/
-    init_Sem(MessageSemaphoreID,myTurn,0);
+    release_Sem(MessageSemaphoreID,myTurn);
+    release_Sem(MessageSemaphoreID,myTurn);
+    sleep(1);
     /*printf("Later Semaphore in pawn is %d\n", semctl(MessageSemaphoreID, myTurn, GETVAL));*/
   }
 
@@ -204,7 +206,7 @@ struct Distance ShortestDistance(){
 int WaitforMSG(){
   /*lock_Sem(MessageSemaphoreID,myTurn);*/ /* Pawn may read and write to buffer */
 
-  while(waiting);
+  wait_Sem(MessageSemaphoreID,myTurn);
   /*printf("Pawn not waiting: %d\n", PawnPID);*/
   /*printf("Command is: %d\n", MessageBuffer->message.command);*/
   /*wait_Sem(MessageSemaphoreID,myTurn);*/
