@@ -1,6 +1,8 @@
 #include "common.h"
 #include "semaphoreSO.h"
 
+#define BORDERS 0 /* 0 for no border chessboard */
+
 int NumFlags;
 
 void handle_signal(int signal);
@@ -129,8 +131,8 @@ int main(){
 		/*lock_Sem(SemID,0);*/ /* Pawns may not be placed until semaphore reset has been locked */
 		init_Sem(SemID,0,0);
 		Log("Semaphore has been reset")
-		sleep(1);
-	BuildPlayingField();
+		/*sleep(1);
+	BuildPlayingField();*/
 		release_Sem(SemID,0); /* Players may place pawns again */
 	}
 
@@ -215,6 +217,8 @@ void BuildPlayingField(){
 	printf("\033[0m");
 	printf(": %d\n\n", NumFlags);
 
+	#if BORDERS == 1
+
 	for(j=0;j<(MAX_WIDTH*2)+1;j++) printf("#"); printf("\n"); /* Print row separator */
 	for(i=0;i<MAX_HEIGHT;i++){
 		printf("#");
@@ -223,6 +227,25 @@ void BuildPlayingField(){
 		for(j=0;j<(MAX_WIDTH*2)+1;j++) printf("#"); printf("\n"); /* Print row separator */
 	}
 	printf("\n");
+
+	#elif BORDERS == 0
+
+
+	for(i=0;i<MAX_HEIGHT;i++){
+		for(j=0;j<MAX_WIDTH;j++){
+			Color(buff[i*MAX_WIDTH+j].Symbol,buff[i*MAX_WIDTH+j].Att.pawn.PIDParent);
+				if(buff[i*MAX_WIDTH+j].Symbol==' ')
+				printf(".");
+				else
+			 	printf("%c",buff[i*MAX_WIDTH+j].Symbol);
+			 	printf("\033[0m");
+		 }
+		printf("\n");
+	}
+	printf("\n");
+
+	#endif
+
 }
 
 void Color(char Symbol, int PIDPlayer){
@@ -300,9 +323,9 @@ void handle_signal(int signal){
 		exit(EXIT_SUCCESS);
 	}
 	if(signal==SIGUSR1){
-		printf("Caught SIGUSR1\n");
+		/*printf("Caught SIGUSR1\n");*/
 		NumFlags--;
-		printf("Flags remaining: %d\n", NumFlags);
+	/*	printf("Flags remaining: %d\n", NumFlags);*/
 		if(NumFlags==0){
 			PlaceFlags();
 			ROUND++;

@@ -99,7 +99,7 @@ int Move(int Direction){
     switch (Direction) {
       case 1: if(lock_Sem(ChessboardSemaphoresID,(PawnRow+1)*MAX_WIDTH+PawnCol,IPC_NOWAIT)==-1 && buff[(PawnRow+1)*MAX_WIDTH+PawnCol].Symbol!='F') return FAIL; /* If occupied, return "FAIL" */
               else{
-                if(buff[(PawnRow+1)*MAX_WIDTH+PawnCol].Symbol=='F'){init_Sem(SemID,2,TOT_PLAYERS+1); kill(MasterPID,SIGUSR1); wait_Sem(SemID,2); ScoreTable[PlrTurn-1].Score+=buff[(PawnRow+1)*MAX_WIDTH+PawnCol].Att.Points;}
+                if(buff[(PawnRow+1)*MAX_WIDTH+PawnCol].Symbol=='F'){CaughtFlag=1;}
                 buff[PawnRow*MAX_WIDTH+PawnCol].Symbol=' ';
                 buff[PawnRow*MAX_WIDTH+PawnCol].Att.Points=0;
                 release_Sem(ChessboardSemaphoresID,PawnRow*MAX_WIDTH+PawnCol); /* Release the occupied cell for other pawn/flag processes */
@@ -107,7 +107,7 @@ int Move(int Direction){
               }break;
       case 2: if(lock_Sem(ChessboardSemaphoresID,(PawnRow-1)*MAX_WIDTH+PawnCol,IPC_NOWAIT)==-1 && buff[(PawnRow-1)*MAX_WIDTH+PawnCol].Symbol!='F') return FAIL; /* If occupied, return "FAIL" */
               else{
-                if(buff[(PawnRow-1)*MAX_WIDTH+PawnCol].Symbol=='F'){init_Sem(SemID,2,TOT_PLAYERS+1); ScoreTable[PlrTurn-1].Score+=buff[(PawnRow-1)*MAX_WIDTH+PawnCol].Att.Points;}
+                if(buff[(PawnRow-1)*MAX_WIDTH+PawnCol].Symbol=='F'){CaughtFlag=1;}
                 buff[PawnRow*MAX_WIDTH+PawnCol].Symbol=' ';
                 buff[PawnRow*MAX_WIDTH+PawnCol].Att.Points=0;
                 release_Sem(ChessboardSemaphoresID,PawnRow*MAX_WIDTH+PawnCol); /* Release the occupied cell for other pawn/flag processes */
@@ -115,7 +115,7 @@ int Move(int Direction){
               }break;
       case 3: if(lock_Sem(ChessboardSemaphoresID,PawnRow*MAX_WIDTH+(PawnCol+1),IPC_NOWAIT)==-1 && buff[PawnRow*MAX_WIDTH+(PawnCol+1)].Symbol!='F') return FAIL; /* If occupied, return "FAIL" */
               else{
-                if(buff[PawnRow*MAX_WIDTH+(PawnCol+1)].Symbol=='F'){init_Sem(SemID,2,TOT_PLAYERS+1); ScoreTable[PlrTurn-1].Score+=buff[PawnRow*MAX_WIDTH+(PawnCol+1)].Att.Points;}
+                if(buff[PawnRow*MAX_WIDTH+(PawnCol+1)].Symbol=='F'){CaughtFlag=1;}
                 buff[PawnRow*MAX_WIDTH+PawnCol].Symbol=' ';
                 buff[PawnRow*MAX_WIDTH+PawnCol].Att.Points=0;
                 release_Sem(ChessboardSemaphoresID,PawnRow*MAX_WIDTH+PawnCol); /* Release the occupied cell for other pawn/flag processes */
@@ -123,7 +123,7 @@ int Move(int Direction){
               }break;
       case 4: if(lock_Sem(ChessboardSemaphoresID,PawnRow*MAX_WIDTH+(PawnCol-1),IPC_NOWAIT)==-1 && buff[PawnRow*MAX_WIDTH+(PawnCol-1)].Symbol!='F') return FAIL; /* If occupied, return "FAIL" */
               else{
-                if(buff[PawnRow*MAX_WIDTH+(PawnCol-1)].Symbol=='F'){init_Sem(SemID,2,TOT_PLAYERS+1); ScoreTable[PlrTurn-1].Score+=buff[PawnRow*MAX_WIDTH+(PawnCol-1)].Att.Points;}
+                if(buff[PawnRow*MAX_WIDTH+(PawnCol-1)].Symbol=='F'){CaughtFlag=1;}
                 buff[PawnRow*MAX_WIDTH+PawnCol].Symbol=' ';
                 buff[PawnRow*MAX_WIDTH+PawnCol].Att.Points=0;
                 release_Sem(ChessboardSemaphoresID,PawnRow*MAX_WIDTH+PawnCol); /* Release the occupied cell for other pawn/flag processes */
@@ -135,14 +135,17 @@ int Move(int Direction){
   buff[PawnRow*MAX_WIDTH+PawnCol].Symbol='P';
   MAX_MOVES--;
   ScoreTable[PlrTurn-1].Moves++;
-  If(CaughtFlag){
+  if(CaughtFlag){
     init_Sem(SemID,2,TOT_PLAYERS+1);
     kill(MasterPID,SIGUSR1);
-    wait_Sem(SemID,2);
     ScoreTable[PlrTurn-1].Score+=buff[PawnRow*MAX_WIDTH+PawnCol].Att.Points;
+    buff[PawnRow*MAX_WIDTH+PawnCol].Att.pawn.PIDParent=ParentPID;
+    buff[PawnRow*MAX_WIDTH+PawnCol].Att.pawn.PIDPawn=PawnPID;
+    wait_Sem(SemID,2);
+  }else{
+    buff[PawnRow*MAX_WIDTH+PawnCol].Att.pawn.PIDParent=ParentPID;
+    buff[PawnRow*MAX_WIDTH+PawnCol].Att.pawn.PIDPawn=PawnPID;
   }
-  buff[PawnRow*MAX_WIDTH+PawnCol].Att.pawn.PIDParent=ParentPID;
-  buff[PawnRow*MAX_WIDTH+PawnCol].Att.pawn.PIDPawn=PawnPID;
   return SUCCESS;
 }
 

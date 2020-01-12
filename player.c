@@ -144,11 +144,12 @@ void InteractwPawn(){
 
  /*printf("Distance target: %d\n", MyTarget.Distance);*/
 
- if((MyTarget.DestinationRow>MyTarget.SourceRow) && MyTarget.SourceRow<MAX_HEIGHT){if(Move(GOUP,MyTarget.PawnTurn)!=-1) Moved=1;}
- if(MyTarget.DestinationRow<MyTarget.SourceRow && Moved==0 && MyTarget.SourceRow>0){if(Move(GODOWN,MyTarget.PawnTurn)!=-1) Moved=1;}
- if(MyTarget.DestinationCol>MyTarget.SourceCol && Moved==0 && MyTarget.SourceCol<MAX_WIDTH){if(Move(GORIGHT,MyTarget.PawnTurn)!=-1) Moved=1;}
- if(MyTarget.DestinationCol<MyTarget.SourceCol && Moved==0 && MyTarget.SourceCol>0){if(Move(GOLEFT,MyTarget.PawnTurn)!=-1) Moved=1;}
+ if((MyTarget.DestinationRow>MyTarget.SourceRow) && MyTarget.SourceRow<MAX_HEIGHT){if(Move(GOUP,MyTarget.PawnTurn)!=-1){MyTarget.SourceRow++; Moved=1;}}
+ if(MyTarget.DestinationRow<MyTarget.SourceRow && Moved==0 && MyTarget.SourceRow>0){if(Move(GODOWN,MyTarget.PawnTurn)!=-1){MyTarget.SourceRow--; Moved=1;}}
+ if(MyTarget.DestinationCol>MyTarget.SourceCol && Moved==0 && MyTarget.SourceCol<MAX_WIDTH){if(Move(GORIGHT,MyTarget.PawnTurn)!=-1){MyTarget.SourceCol++; Moved=1;}}
+ if(MyTarget.DestinationCol<MyTarget.SourceCol && Moved==0 && MyTarget.SourceCol>0){if(Move(GOLEFT,MyTarget.PawnTurn)!=-1){MyTarget.SourceCol--; Moved=1;}}
  if(Moved==0){ /* Can't move */
+ printf("Can't move\n");
     /* Let's force a poor pawn to move at random */
   /* time_t t;
    srand((unsigned) time(&t));
@@ -175,6 +176,7 @@ int Move(int Direction, int Index){
   kill(myPawns[Index],SIGUSR2); /* Why is it called "Kill"? I'm not killing my process */
   /*lock_Sem(MessageSemaphoreID,Index,0);*/
   wait_Sem(MessageSemaphoreID,Index);
+  printf("Done waiting %d\n",myPawns[Index]);
   /*init_Sem(MessageSemaphoreID,Index,1);*/
 
   return MessageBuffer->mtype;
@@ -290,5 +292,6 @@ void handle_signal(int signal){
     if(buff[MyTarget.DestinationRow*MAX_WIDTH+MyTarget.DestinationCol].Symbol!='F')
     CheckforClosest=1;
     lock_Sem(ID,2,0);
+    /*printf("Semaphore: %d\n", semctl(ID,2,GETVAL));*/
   }
 }
