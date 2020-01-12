@@ -65,8 +65,6 @@ int main(){
 
 	buff = AttachMem(shmID);
 
-	MessageQueueID = SharedMemID(ftok("./pawn",65), sizeof(struct Message));
-
 	ChessboardSemaphoresID = Semaphore(ftok("./master.c",64),MAX_HEIGHT*MAX_WIDTH);
 
 	ScoreTableID = SharedMemID(ftok("./master",1),sizeof(struct Scoreboard)*TOT_PLAYERS);
@@ -149,7 +147,6 @@ void Terminate(){
 	shmdt(buff); /* Deattach shared memory segment */
 	shmctl(shmID,IPC_RMID,NULL); /* Deallocate a shared memory */
 	shmctl(ScoreTableID,IPC_RMID,NULL);
-	shmctl(MessageQueueID,IPC_RMID,NULL);
 	remove_Sem(SemID);
 	remove_Sem(ChessboardSemaphoresID);
 }
@@ -262,7 +259,6 @@ void PlaceFlags(){ /* Randomly place flags in our field */
 			if(buff[i*MAX_WIDTH+j].Symbol=='F'){
 				buff[i*MAX_WIDTH+j].Symbol=' ';
 				buff[i*MAX_WIDTH+j].Att.Points=0;
-				release_Sem(ChessboardSemaphoresID,i*MAX_WIDTH+j);
 			 } /* Remove all old flags */
 
 	for(i=0;i<NumFlags;i++){
@@ -271,7 +267,7 @@ void PlaceFlags(){ /* Randomly place flags in our field */
 			randRow = (rand() % MAX_HEIGHT); /* Random number from 0 to MAX_HEIGHT - 1 */
 			randCol = (rand() % MAX_WIDTH); /* Random number from 0 to MAX_WIDTH - 1 */
 			Logn("Found",buff[randRow*MAX_WIDTH+randCol].Symbol);
-		}while(lock_Sem(ChessboardSemaphoresID,randRow*MAX_WIDTH+randCol,IPC_NOWAIT)==-1);/* If it returns with a -1, we assume the cell is OCCUPIED */
+		}while(buff[randRow*MAX_WIDTH+randCol].Symbol!=' ');
 		/*}while(buff[randRow*MAX_WIDTH+randCol].Symbol!=' ');*/ /* if the cell is ALREADY occupied, we re-randomize our row and column numbers */
 
 		buff[randRow*MAX_WIDTH+randCol].Symbol = 'F';
@@ -290,7 +286,6 @@ void handle_signal(int signal){
 		for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], 2);
 		while(PlayerPIDs[i] = wait(&status) != -1){i++;}
 		shmctl(shmID,IPC_RMID,NULL);
-		shmctl(MessageQueueID,IPC_RMID,NULL);
 		shmctl(ScoreTableID,IPC_RMID,NULL);
 		remove_Sem(SemID);
 		remove_Sem(ChessboardSemaphoresID);
@@ -304,11 +299,9 @@ void handle_signal(int signal){
 			PlaceFlags();
 			ROUND++;
 			BuildPlayingField();
-		}
-
+		for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR2);
+		}else
 		for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR1);
-		lock_Sem(SemID,2,0);
-
 	}
 
 }

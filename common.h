@@ -72,13 +72,25 @@ struct Cell{
 };
 
 /* Defining a message type */
-struct Distance{
+/*struct Distance{
 	int Distance;
 	int DestinationCol;
 	int DestinationRow;
 	int SourceCol;
 	int SourceRow;
 	int PawnTurn;
+};
+*/
+struct PawnInfo{
+	int Row;
+	int Col;
+	int PID;
+};
+
+struct Destination{
+	int Distance;
+	int DestinationCol;
+	int DestinationRow;
 };
 
 /* Defining a message structre for Player-Pawn communication */
