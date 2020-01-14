@@ -32,6 +32,8 @@ int compare_Sem(int semID, int semNum, int valtocompare); /* Compare a value to 
 
 int lock_Sem(int semID, int semNum, int flag); /* Lock the semaphore */
 
+int timed_lock_Sem(int semID, int semNum, int flag, unsigned long time); /* Lock the semaphore */
+
 int release_Sem(int semID, int semNum); /* Release the semaphore */
 
 int wait_Sem(int semID, int semNum); /* Wait for semaphore */

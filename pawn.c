@@ -5,6 +5,7 @@ int MAX_WIDTH;
 int MAX_HEIGHT;
 int MAX_MOVES;
 int TOT_PLAYERS;
+int MIN_HOLD_NSEC;
 struct Cell *buff;
 struct Message *MessageBuffer;
 struct Scoreboard *ScoreTable;
@@ -45,6 +46,7 @@ int main(int argc, char* argv[]){
   MAX_HEIGHT=ConfigParser("./Settings.conf", "MAX_HEIGHT");
   MAX_MOVES=ConfigParser("./Settings.conf", "MAX_MOVES");
   TOT_PLAYERS=ConfigParser("./Settings.conf", "TOT_PLAYERS");
+  MIN_HOLD_NSEC=ConfigParser("./Settings.conf", "MIN_HOLD_NSEC");
 
   if(argc<5){printf("ERROR: Not enough arguments for PAWN\n"); exit(EXIT_FAILURE);}
   PawnCol = atoi(argv[0]);
@@ -74,23 +76,12 @@ int main(int argc, char* argv[]){
   MessageSemaphoreID = Semaphore(ftok("./pawn",PlrTurn), 0);
   ChessboardSemaphoresID = Semaphore(ftok("./master.c",64),MAX_HEIGHT*MAX_WIDTH);
 
-
+  wait_Sem(SemID,3);
+  
   while(1){
-    Moved=0;
-    wait_sem(SemID,4);
 
     Move();
 
-    if(PawnRow>MyTarget[myTurn].DestinationRow && Moved=0){Moved=1; PawnRow--;}
-    if(PawnRow<MyTarget[myTurn].DestinationRow && Moved=0){Moved=1; PawnRow++;}
-    if(PawnCol>MyTarget[myTurn].DestinationCol && Moved=0){Moved=1; PawnCol--;}
-    if(PawnCol>MyTarget[myTurn].DestinationCol && Moved=0){Moved=1; PawnCol++;}
-
-    waiting=1;
-
-    release_Sem(MessageSemaphoreID,myTurn);
-    release_Sem(MessageSemaphoreID,myTurn);
-    sleep(1);
     /*printf("Later Semaphore in pawn is %d\n", semctl(MessageSemaphoreID, myTurn, GETVAL));*/
   }
 
@@ -102,7 +93,7 @@ int Move(){
   if(MAX_MOVES>0 && MyTarget[myTurn].Distance!=MAX_INT){
 
       if(PawnRow<MyTarget[myTurn].DestinationRow && Moved=0)
-      if(lock_Sem(ChessboardSemaphoresID,(PawnRow+1)*MAX_WIDTH+PawnCol,IPC_NOWAIT)!=-1){
+      if(timed_lock_Sem(ChessboardSemaphoresID,(PawnRow+1)*MAX_WIDTH+PawnCol,IPC_NOWAIT,MIN_HOLD_NSEC)!=-1){
           if(buff[(PawnRow+1)*MAX_WIDTH+PawnCol].Symbol=='F'){CaughtFlag=1;}
               buff[PawnRow*MAX_WIDTH+PawnCol].Symbol=' ';
               buff[PawnRow*MAX_WIDTH+PawnCol].Att.Points=0;

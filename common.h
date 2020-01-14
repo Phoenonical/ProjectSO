@@ -94,10 +94,10 @@ struct Destination{
 };
 
 /* Defining a message structre for Player-Pawn communication */
-union MessageBody{
+/*union MessageBody{
 	int command;
 	struct Distance Loc;
-};
+};*/
 
 struct Scoreboard{
 	int Moves;
@@ -112,10 +112,10 @@ struct Scoreboard{
  * = 4 (Go left)
 */
 
-struct Message{
+/*struct Message{
 	char mtype;
 	union MessageBody message;
-};
+};*/
 
 /* mtype = ...
  * = -1 (Error)

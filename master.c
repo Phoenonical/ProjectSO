@@ -53,6 +53,7 @@ int main(){
 	sigaction(SIGINT, &sa, NULL);
 	/*sigaction(SIGUSR1, &sa, NULL);*/
 	signal(SIGUSR1,handle_signal);
+	signal(SIGALRM,handle_signal);
 
 	/*for(i = 0; i<NSIG; i++){
 		if(sigaction(i, &sa, NULL)==-1)
@@ -119,19 +120,10 @@ int main(){
 
 	/* So it begins - Thèoden Ednew, King of Rohan */
 
+	alarm(3);
 
-
-	BuildPlayingField();
-
-	release_Sem(SemID,0); /* Allows the players to interact with their pawns */
 	while(1){
-		while (!compare_Sem(SemID,0,TOT_PLAYERS+1)); /* Wait until all players are done */
-		/*lock_Sem(SemID,0);*/ /* Pawns may not be placed until semaphore reset has been locked */
-		init_Sem(SemID,0,0);
-		Log("Semaphore has been reset")
-		/*sleep(1);*/
-	/*BuildPlayingField();*/
-		release_Sem(SemID,0); /* Players may place pawns again */
+		BuildPlayingField();
 	}
 
 
@@ -142,6 +134,11 @@ int main(){
 void Terminate(){
 	int i;
 	int status;
+	char ch;
+	printf("Press any key to exit....\n");
+	scanf("%c",&ch);
+
+
 	for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], 2);
 	while(PlayerPIDs[i] = wait(&status) != -1){i++;}
 	shmdt(buff); /* Deattach shared memory segment */
@@ -232,7 +229,7 @@ void Color(char Symbol, int PIDPlayer){
 			case 2: printf("\033[0;34m");break;
 			case 3: printf("\033[0;35m");break;
 			case 4: printf("\033[0;36m");break;
-			case 5: printf("\033[1;31m");break;
+			case 5: printf("\033[0;31m");break;
 			case 6: printf("\033[1;32m");break;
 			case 7: printf("\033[1;33m");break;
 			case 8: printf("\033[1;34m");break;
@@ -297,11 +294,16 @@ void handle_signal(int signal){
 	/*	printf("Flags remaining: %d\n", NumFlags);*/
 		if(NumFlags==0){
 			PlaceFlags();
+			alarm(3);
 			ROUND++;
-			BuildPlayingField();
 		for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR2);
 		}else
 		for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR1);
+	}
+
+	if(signal==SIGALRM){
+		if(NumFlags>0)
+		Terminate();
 	}
 
 }

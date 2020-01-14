@@ -99,7 +99,7 @@ int main(int argc, char *argv[]){
   Logn("Pid", myPawns[i]);
   }
 
-
+  InteractwPawn();
   wait_Sem(ID,3); /* Wait until Master starts the game */
   /* So it begins - Thèoden Ednew, King of Rohan */
   Log("Beginning");
@@ -108,7 +108,6 @@ int main(int argc, char *argv[]){
 
     Logn("Player's turn", myPID);
 
-    InteractwPawn();
 
     /*release_Sem(ID, 0);*/
     /*Logn("Incremented Semaphore",semctl(ID, 0, GETVAL));*/
