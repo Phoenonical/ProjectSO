@@ -39,6 +39,7 @@ int timed_lock_Sem(int semID, int semNum, int flag, unsigned long time){ /* Proc
   return semtimedop(semID, &sops, 1,time); /* Processes pause here and may only continue if semaphore's value is greater than 0 or if the timer runs out*/
 }
 
+
 int release_Sem(int semID, int semNum){
   struct sembuf sops; /* A structure the semop(...) HAS to have.... needy bastard */
   sops.sem_num = semNum; /* The position of our semaphore in the array */
