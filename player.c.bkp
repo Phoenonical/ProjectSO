@@ -1,0 +1,150 @@
+#include "common.h"
+#include "semaphoreSO.h"
+
+void PlacePawn(); /* Place pawn on the playing field */
+void CreatePawn(int RandRow, int RandCol, int PlayerID); /* Create the pawn process */
+char* tostring(int Num);
+void InteractwPawn(); /* Ask pawn which flag is closest, send instructions and etc... */
+void handle_signal(int signal);
+
+int TOT_PLAYERS;
+int TOT_PAWNS;
+int TOT_POINTS;
+int MAX_WIDTH;
+int MAX_HEIGHT;
+int MIN_FLAGS;
+int MAX_FLAGS;
+
+struct Cell *buff; /* The playing field */
+int *MessageBuffer;
+int * myPawns; /* Storing pawn PIDs */
+int myPID;
+int myTurn;
+
+
+int main(int argc, char * argv[]){
+  int i,j;
+  struct sigaction sa; /* Structure for later signal catching */
+  myTurn=atoi(argv[1]);
+
+  TOT_PLAYERS=ConfigParser("./Settings.conf", "TOT_PLAYERS");
+	TOT_PAWNS=ConfigParser("./Settings.conf", "TOT_PAWNS");
+	TOT_POINTS=ConfigParser("./Settings.conf", "TOT_POINTS");
+	MAX_WIDTH=ConfigParser("./Settings.conf", "MAX_WIDTH");
+	MAX_HEIGHT=ConfigParser("./Settings.conf", "MAX_HEIGHT");
+	MAX_FLAGS=ConfigParser("./Settings.conf", "MAX_FLAGS");
+	MIN_FLAGS=ConfigParser("./Settings.conf", "MIN_FLAGS");
+
+  /* Set Signal handler */
+  bzero(&sa, sizeof(sa));
+	sa.sa_handler = handle_signal;
+
+	for(i = 0; i<NSIG; i++){
+		if(sigaction(i, &sa, NULL)==-1)
+			Logn("Cannot set a user-defined handler for Signal",i);
+	}
+
+
+  myPID=getpid();
+  int shmID = SharedMemID(ftok("./",70),sizeof(struct Cell)*MAX_HEIGHT*MAX_WIDTH);
+
+  buff = AttachMem(shmID);
+
+  int ID = Semaphore(ftok("./player.c",67), 0);
+  Logn("Player semaphoreID",ID);
+  myPawns=calloc(TOT_PAWNS,sizeof(*myPawns));
+  for(i=0;i<TOT_PAWNS;i++){
+
+
+
+    lock_Sem(ID, 0);
+    Log("Locked");
+    Logn("Player's turn", myPID);
+    Wait(1);
+    PlacePawn();
+    /*Wait(1);*/
+
+    release_Sem(ID, 0);
+    Log("Unlocked");
+
+    release_Sem(ID,1);
+    Logn("Semaphore value",semctl(ID, 1, GETVAL));
+    wait_Sem(ID,1);
+    Log("Done waiting, starting new turn");
+  }
+  /* Set a 1 int size buffer for communication */
+  int MessageQueueID = SharedMemID(ftok("./pawn",64), sizeof(int));
+  MessageBuffer = AttachMem(MessageQueueID);
+
+  /*for(i=0;i<TOT_PAWNS;i++)
+  printf("Pid %d ", myPawns[i]);
+  printf("\n");
+  */
+
+  wait_Sem(ID,3); /* Wait until Master starts the game */
+  /* So it begins - Thèoden Ednew, King of Rohan */
+  printf("Beginning\n");
+  while(1){
+    lock_Sem(ID, 0);
+    Log("Locked");
+    Logn("Player's turn", myPID);
+    InteractwPawn();
+    release_Sem(ID, 0);
+    Log("Unlocked");
+    release_Sem(ID, 1);
+    wait_Sem(ID,1);
+  }
+}
+
+void PlacePawn(){
+  time_t t; /* Here's a genius idea, I'll use the time as my srand seed */
+  srand((unsigned) time(&t)); /* Intializes random number generator */
+  int randRow;
+  int randCol;
+    Log("Check for pawn");
+    do{
+      randRow = (rand() % MAX_HEIGHT);
+      randCol = (rand() % MAX_WIDTH);
+      Logn("Found",buff[randRow*MAX_WIDTH+randCol].Symbol);
+      Logn("Row",randRow);
+      Logn("Column",randCol);
+    }while(buff[randRow*MAX_WIDTH+randCol].Symbol!=' '); /* if the cell is ALREADY occupied, we re-randomize our row and column numbers */
+    /*Wait(1);*/
+    buff[randRow*MAX_WIDTH+randCol].Symbol='P'; /* Placing a pawn in a random location */
+    CreatePawn(randRow, randCol, myPID); /* Creating the process pawn */
+    /*Wait(1);*/
+    Log("Placed pawn");
+}
+
+void CreatePawn(int randRow, int randCol, int PlayerID){
+  char *Col=tostring(randCol);
+  char *Row=tostring(randRow);
+  char *PlayerPID=tostring(PlayerID); /* Converting integers to String */
+	char* args[] = {Col,Row,PlayerPID,NULL};
+  static int i=0;
+	switch(myPawns[i]=fork()){
+	case -1: printf("ERROR: Error creating fork\n"); exit(EXIT_FAILURE);break;
+	case 0:  execve("./pawn", args, NULL); exit(EXIT_FAILURE);break;
+	/*case 0: execvp(args[0],args); exit(EXIT_FAILURE);*/
+	default: i++; Wait(1); break;
+	}
+}
+
+void InteractwPawn(){
+  /* First of all, let's ask which pawn is closest to a flag */
+  printf("Interacting\n");
+  int i;
+  int ID;
+  for(i=0;i<TOT_PAWNS;i++){
+
+  }
+}
+
+void handle_signal(int signal){
+	Logn("Signal", signal);
+  int i;
+	if(signal==2){
+		for(i=0;i<TOT_PLAYERS;i++) kill(myPawns[i], 2);
+    exit(EXIT_SUCCESS);
+	}
+}
