@@ -72,7 +72,7 @@ struct Cell{
 };
 
 /* Defining a message type */
-struct Distance{
+/*struct Distance{
 	int Distance;
 	int DestinationCol;
 	int DestinationRow;
@@ -80,12 +80,24 @@ struct Distance{
 	int SourceRow;
 	int PawnTurn;
 };
+*/
+struct PawnInfo{
+	int Row;
+	int Col;
+	int PID;
+};
+
+struct Destination{
+	int Distance;
+	int DestinationCol;
+	int DestinationRow;
+};
 
 /* Defining a message structre for Player-Pawn communication */
-union MessageBody{
+/*union MessageBody{
 	int command;
 	struct Distance Loc;
-};
+};*/
 
 struct Scoreboard{
 	int Moves;
@@ -100,10 +112,10 @@ struct Scoreboard{
  * = 4 (Go left)
 */
 
-struct Message{
+/*struct Message{
 	char mtype;
 	union MessageBody message;
-};
+};*/
 
 /* mtype = ...
  * = -1 (Error)

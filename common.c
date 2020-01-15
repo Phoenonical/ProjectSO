@@ -10,7 +10,6 @@ int ConfigParser(char* Path, char* toGet){ /* I might've over-complicated it */
   my_f = fopen(Path,"r");
   if(my_f==NULL){printf("CONFIG ERROR: Error opening file\n"); exit(EXIT_FAILURE);}
 
-
   ch = fgetc(my_f);
   /* Read .conf file */
   while(ch!=EOF){ /* For each row */

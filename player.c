@@ -9,7 +9,7 @@ char* tostring(int Num);
 void InteractwPawn(); /* Ask pawn which flag is closest, send instructions and etc... */
 struct Distance FindClosest();
 void handle_signal(int signal);
-int Move();
+void CleanTargets();
 
 int TOT_PLAYERS;
 int TOT_PAWNS;
@@ -22,21 +22,21 @@ int MAX_FLAGS;
 struct Cell *buff; /* The playing field */
 struct Message *MessageBuffer;
 struct Scoreboard *ScoreTable;
-struct Distance MyTarget; /* Which flag am I'm aiming for with which pawn? */
-int * myPawns; /* Storing pawn PIDs */
+struct Distance *MyTarget; /* Which flag am I'm aiming for with which pawn? */
+struct PawnInfo *myPawns; /* Storing pawn PIDs */
 int myPID;
 int myTurn;
 int MessageSemaphoreID;
 int ChessboardSemaphoresID;
-int MessageQueueID;
+int TargetID
 int ScoreTableID;
-int CheckforClosest=1;
+int Newround=1;
+int ID;
 
 
 int main(int argc, char *argv[]){
   int i,j;
   int shmID;
-  int ID;
   struct sigaction sa; /* Structure for later signal catching */
   myTurn=atoi(argv[1]);
   TOT_PLAYERS=ConfigParser("./Settings.conf", "TOT_PLAYERS");
@@ -46,11 +46,12 @@ int main(int argc, char *argv[]){
 	MAX_HEIGHT=ConfigParser("./Settings.conf", "MAX_HEIGHT");
 	MAX_FLAGS=ConfigParser("./Settings.conf", "MAX_FLAGS");
 	MIN_FLAGS=ConfigParser("./Settings.conf", "MIN_FLAGS");
-  /* Set a 1 int size buffer for communication */
-  MessageQueueID = SharedMemID(ftok("./pawn",65), sizeof(struct Message));
-  MessageBuffer = AttachMem(MessageQueueID);
+
+  TargetID = SharedMemID(ftok("./pawn",myTurn), sizeof(struct Destination)*TOT_PAWNS);
+  MyTarget = AttachMem(TargetID);
+
   MessageSemaphoreID = Semaphore(ftok("./pawn",myTurn), TOT_PAWNS);
-  for(i=0;i<TOT_PAWNS;i++) init_Sem(MessageSemaphoreID,i,1); /* For Message reading */
+  for(i=0;i<TOT_PAWNS;i++) init_Sem(MessageSemaphoreID,i,0); /* For Message reading */
   ChessboardSemaphoresID = Semaphore(ftok("./master.c",64),MAX_HEIGHT*MAX_WIDTH);
   ScoreTableID = SharedMemID(ftok("./master",1),sizeof(struct Scoreboard)*TOT_PLAYERS);
   ScoreTable = AttachMem(ScoreTableID);
@@ -66,10 +67,6 @@ int main(int argc, char *argv[]){
 
   signal(SIGUSR1,handle_signal);
 
-  /*for(i = 0; i<NSIG; i++){
-    if(sigaction(i, &sa, NULL)==-1)
-      Logn("Cannot set a user-defined handler for Signal",i);
-  }*/
 
 
   myPID=getpid();
@@ -79,104 +76,117 @@ int main(int argc, char *argv[]){
 
   ID = Semaphore(ftok("./player.c",68), 0);
   Logn("Player semaphoreID",ID);
-  myPawns=malloc(sizeof(*myPawns)*TOT_PAWNS);
+  myPawns=malloc(sizeof(struct PawnInfo)*TOT_PAWNS);
   for(i=0;i<TOT_PAWNS;i++){
 
     while(!compare_Sem(ID,0,myTurn));
-    /*lock_Sem(ID, 0);*/
     Logn("Player's turn", myTurn);
     Wait(2);
     PlacePawn(i);
-    /*Wait(1);*/
+
     Logn("Current Semaphore",semctl(ID, 0, GETVAL));
     release_Sem(ID, 0);
 
     wait_Sem(ID,0);
 
-
-    /*release_Sem(ID,1);
-    Logn("Semaphore value",semctl(ID, 1, GETVAL));
-    wait_Sem(ID,1);*/
     Log("Done waiting, starting new turn");
   }
 
-  for(i=0;i<TOT_PAWNS;i++)
+  for(i=0;i<TOT_PAWNS;i++){
+  MyTarget[i].distance=MAX_INT;
+  MyTarget[i].Row=MAX_INT;
+  MyTarget[i].Col=MAX_INT;
   Logn("Pid", myPawns[i]);
+  }
 
-
+  InteractwPawn();
   wait_Sem(ID,3); /* Wait until Master starts the game */
   /* So it begins - Thèoden Ednew, King of Rohan */
   Log("Beginning");
-  while(1){
 
-    while(!compare_Sem(ID,0,myTurn));
+    /*while(!compare_Sem(ID,0,myTurn));*/
 
-    /*lock_Sem(ID, 0);*/
     Logn("Player's turn", myPID);
-    /*printf("Player's turn %d\n", myPID);*/
-    Wait(1);
-    InteractwPawn();
-    /*Wait(1);*/
 
-    release_Sem(ID, 0);
-    Logn("Incremented Semaphore",semctl(ID, 0, GETVAL));
 
-    wait_Sem(ID,0);
+    /*release_Sem(ID, 0);*/
+    /*Logn("Incremented Semaphore",semctl(ID, 0, GETVAL));*/
 
-    /*lock_Sem(ID, 0);
-    Log("Locked");
-    Logn("Player's turn", myPID);
-    InteractwPawn();
-    release_Sem(ID, 0);
-    Log("Unlocked");
-    release_Sem(ID, 1);
-    wait_Sem(ID,1);*/
-    Wait(5);
+    while(1){
+      if(Newround){
+        CleanTargets();
+        InteractwPawn();
+      }
+    }
+
+    /*wait_Sem(ID,0);*/
+
+}
+
+void CleanTargets(){
+  for(i=0;i<TOT_PAWNS;i++){
+    for(j=0;j<TOT_PAWNS;j++){
+      if(MyTarget[i].Destination>MyTarget[j]->Destination && MyTarget[i].Row==MyTarget[j]->Row && MyTarget[i].Col==MyTarget[j].Col){
+        MyTarget[i].Destination=MAX_INT;
+        MyTarget[i].Row=-1;
+        MyTarget[i].Col=-1;
+      }
+    }
   }
 }
 
 void InteractwPawn(){
- char Moved=0;
- if(CheckforClosest){
-   MyTarget = FindClosest();
-   CheckforClosest=0;
+   char Moved=0;
+   int i,j;
+   struct Destination temp;
+   for(i=0;i<TOT_PAWNS;i++){
+     MyTarget[i] = FindClosest(i);
+   }
+}
+
+struct Destination FindClosest(int Index){
+  int i,j,l,k,Index;
+  char NottoCheck[TOT_PAWNS];
+  struct Destination closest;
+  int distance;
+  for(i=0;i<MAX_HEIGHT;i++){
+    for(j=0;j<MAX_WIDTH;j++){
+      if(buff[i*MAX_WIDTH+j].Symbol=='F'){
+          for(k=0;k<TOT_PAWNS;k++) NottoCheck[k]=0;
+          do{
+            closest.Distance=MAX_INT;
+
+            for(l=0;l<TOT_PAWNS;l++){
+            distance=0;
+            if(myPawns[l]->Row>i) distance+=Row-i;
+            else if(myPawns[l]->Row<i) distance+=i-Row;
+            else if(myPawns[l]->Row==i) distance+=0;
+
+            if(myPawns[l]->Col>j) distance+=Col-j;
+            else if(myPawns[l]->Col<j) distance+=j-Col;
+            else if(myPawns[l]->Col==j) distance+=0;
+
+            if(closest.Distance>distance && NottoCheck[l]){
+              closest.Distance=distance;
+              closest.DestinationRow=i;
+              closest.DestinationCol=j;
+              Index=l;
+            }
+          }
+
+          if(MyTarget[Index].Distance>closest.Distance){
+            MyTarget[Index]->Distance=closest.Distance;
+            MyTarget[Index]->DestinationRow=closest.DestinationRow;
+            MyTarget[Index]->DestinationCol=closest.DestinationCol;
+
+          }else NottoCheck[Index]=1;
+        }while(NottoCheck[Index]);
+
+      }
+    }
   }
-
- Logn("Distance Target", MyTarget.Distance);
-
- if((MyTarget.DestinationRow>MyTarget.SourceRow) && MyTarget.SourceRow<MAX_HEIGHT){if(Move(GOUP,MyTarget.PawnTurn)!=-1) Moved=1;}
- if(MyTarget.DestinationRow<MyTarget.SourceRow && Moved==0 && MyTarget.SourceRow>0){if(Move(GODOWN,MyTarget.PawnTurn)!=-1) Moved=1;}
- if(MyTarget.DestinationCol>MyTarget.SourceCol && Moved==0 && MyTarget.SourceCol<MAX_WIDTH){if(Move(GORIGHT,MyTarget.PawnTurn)!=-1) Moved=1;}
- if(MyTarget.DestinationCol<MyTarget.SourceCol && Moved==0 && MyTarget.SourceCol>0){if(Move(GOLEFT,MyTarget.PawnTurn)!=-1) Moved=1;}
- if(Moved==0){ /* Can't move */
-    /* Let's force a poor pawn to move at random */
-  /* time_t t;
-   srand((unsigned) time(&t));
-   int Index;
-   do{
-   Index=rand()%TOT_PAWNS;
- }while(Moved==0)*/
-}
 }
 
-int Move(int Direction, int Index){
-  /* Trying to tell my pawn to move */
-  /*printf("index %d\n", Index);*/
-  Logn("Sending move order to",myPawns[Index]);
-  /*printf("Sending move order to %d\n", myPawns[Index]);*/
-  MessageBuffer->mtype=1; /* 1 is: command */
-  /*printf("(player-move) type modified %d\n", MessageBuffer->mtype);*/
-  MessageBuffer->message.command=Direction; /* Giving a direction */
-  /*release_Sem(MessageSemaphoreID,i);*/ /* Pawn may read and write to buffer */
-  init_Sem(MessageSemaphoreID,Index,1);
-  kill(myPawns[Index],SIGUSR2); /* Why is it called "Kill"? I'm not killing my process */
-  /*lock_Sem(MessageSemaphoreID,Index,0);*/
-  wait_Sem(MessageSemaphoreID,Index);
-  /*init_Sem(MessageSemaphoreID,Index,1);*/
-
-  return MessageBuffer->mtype;
-  /*lock_Sem(MessageSemaphoreID,i);*/ /* Block the pawn from reading again */
-}
 
 void PlacePawn(int i){
   time_t t; /* Here's a genius idea, I'll use the time as my srand seed */
@@ -193,6 +203,8 @@ void PlacePawn(int i){
     buff[randRow*MAX_WIDTH+randCol].Symbol='P'; /* Placing a pawn in a random location */
     CreatePawn(randRow, randCol, myTurn, i); /* Creating the process pawn */
     /*Wait(1);*/
+    myPawns[i]->Row=randRow;
+    myPawns[i]->Col=randCol;
     Log("Placed pawn at");
     Logn("Row",randRow);
     Logn("Column",randCol);
@@ -225,50 +237,12 @@ void CreatePawn(int randRow, int randCol, int PlayerTurn, int i){
   args[4] = Plturn;
   args[5] = NULL;
 
-	switch(myPawns[i]=fork()){
+	switch(myPawns[i]->PID=fork()){
 	case -1: printf("ERROR: Error creating fork\n"); TERMINATE; break;
 	case 0:  execve("./pawn", args, NULL); TERMINATE; break;
 	/*case 0: execvp(args[0],args); exit(EXIT_FAILURE);*/
 	default: i++; Wait(1); break;
 	}
-}
-
-struct Distance FindClosest(){
-  /* First of all, let's ask which pawn is closest to a flag */
-  int i;
-  struct Distance closest;
-  closest.Distance=MAX_INT;
-  for(i=0;i<TOT_PAWNS;i++){
-  /*  printf("Sending message to %d\n",myPawns[i]);*/
-    Logn("Sending message to",myPawns[i]);
-    MessageBuffer->mtype=1; /* 1 is: command */
-  /*  printf("(player-FindClosest) type modified %d\n", MessageBuffer->mtype);*/
-    MessageBuffer->message.command=0; /* 0 is: Closest flag */
-    /*printf("(player-FindClosest) command modified %d\n", MessageBuffer->message.command);*/
-    /*release_Sem(MessageSemaphoreID,i);*/ /* Pawn may read and write to buffer */
-  /*  printf("I is %d\n",i);*/
-    /*printf("Semaphore is %d\n", semctl(MessageSemaphoreID, 0, GETVAL));*/
-    init_Sem(MessageSemaphoreID,i,1);
-    kill(myPawns[i],SIGUSR2); /* Why is it called "Kill"? I'm not killing my process */
-    /*sleep(1);*/
-    /*printf("Later Semaphore is %d\n", semctl(MessageSemaphoreID, i, GETVAL));*/
-    wait_Sem(MessageSemaphoreID,i); /* I hate this part */
-    /*printf("Laterer Semaphore is %d\n", semctl(MessageSemaphoreID, i, GETVAL));*/
-    /*sleep(1);*/
-    /*while(!compare_Sem(MessageSemaphoreID,i,1));*/ /* Wait until pawn is done writing */
-    /*lock_Sem(MessageSemaphoreID,i);*/ /* Block the pawn from reading again */
-    if(MessageBuffer->mtype==2)
-    if(closest.Distance>MessageBuffer->message.Loc.Distance){
-      closest.Distance=MessageBuffer->message.Loc.Distance;
-      closest.DestinationRow=MessageBuffer->message.Loc.DestinationRow;
-      closest.DestinationCol=MessageBuffer->message.Loc.DestinationCol;
-      closest.SourceRow=MessageBuffer->message.Loc.SourceRow;
-      closest.SourceCol=MessageBuffer->message.Loc.SourceCol;
-      closest.PawnTurn=i;
-    }else; else{printf("ERROR: (Player) Message error message type is %d\n",MessageBuffer->mtype); sleep(3);}
-  }
-  /*printf("Distance %d\n", closest.Distance);*/
-  return closest;
 }
 
 void handle_signal(int signal){
@@ -283,6 +257,12 @@ void handle_signal(int signal){
   exit(EXIT_SUCCESS);
   }
   if(signal==SIGUSR1){
-    CheckforClosest=1;
+    for(i=0;i<TOT_PAWNS;i++)
+    if(MyTarget[i].Distance!=MAX_INT)
+      if(buff[MyTarget[i].DestinationRow*MAX_WIDTH+MyTarget[i].DestinationCol].Symbol!='F')
+        MyTarget[i].Distance=MAX_INT;
+  }
+  if(signal==SIGUSR2){
+    Newround=1;
   }
 }

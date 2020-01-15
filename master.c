@@ -1,6 +1,8 @@
 #include "common.h"
 #include "semaphoreSO.h"
 
+#define BORDERS 0 /* 0 for no border chessboard */
+
 int NumFlags;
 
 void handle_signal(int signal);
@@ -51,6 +53,7 @@ int main(){
 	sigaction(SIGINT, &sa, NULL);
 	/*sigaction(SIGUSR1, &sa, NULL);*/
 	signal(SIGUSR1,handle_signal);
+	signal(SIGALRM,handle_signal);
 
 	/*for(i = 0; i<NSIG; i++){
 		if(sigaction(i, &sa, NULL)==-1)
@@ -62,8 +65,6 @@ int main(){
 	shmID = SharedMemID(ftok("./",70),sizeof(struct Cell)*MAX_HEIGHT*MAX_WIDTH);
 
 	buff = AttachMem(shmID);
-
-	MessageQueueID = SharedMemID(ftok("./pawn",65), sizeof(struct Message));
 
 	ChessboardSemaphoresID = Semaphore(ftok("./master.c",64),MAX_HEIGHT*MAX_WIDTH);
 
@@ -110,7 +111,7 @@ int main(){
 	/* Re-using the old semaphores */
 	init_Sem(SemID, 0, 0); /* Make players take turns */
 	init_Sem(SemID, 1, 0); /* After a player has finished their turn, it'll wait for the rest */
-	init_Sem(SemID, 2, 1);
+	init_Sem(SemID, 2, 1); /* Signaling */
 
 
 	PlaceFlags(); /* Place down flags on the board */
@@ -119,47 +120,12 @@ int main(){
 
 	/* So it begins - Thèoden Ednew, King of Rohan */
 
+	alarm(3);
 
-
-	BuildPlayingField();
-
-	release_Sem(SemID,0); /* Allows the players to interact with their pawns */
 	while(1){
-		while (!compare_Sem(SemID,0,TOT_PLAYERS+1)); /* Wait until all players are done */
-		/*lock_Sem(SemID,0);*/ /* Pawns may not be placed until semaphore reset has been locked */
-		init_Sem(SemID,0,0);
-		Log("Semaphore has been reset")
-	/*	sleep(1);*/
 		BuildPlayingField();
-		release_Sem(SemID,0); /* Players may place pawns again */
 	}
 
-
-	Log("Removing semaphore in 60 seconds..");
-	sleep(60);
-	remove_Sem(SemID);
-
-#ifdef DEBUG
-	for(i=0;i<MAX_HEIGHT;i++){
-		for(j=0;j<MAX_WIDTH;j++){
-			if(buff[i*MAX_WIDTH+j].Symbol == 'P')
-			printf("%d ", buff[i*MAX_WIDTH+j].Att.pawn.PIDParent);
-			else
-			printf("%d ", 0);
-		}
-		printf("\n");
-	}printf("\n");
-
-	for(i=0;i<MAX_HEIGHT;i++){
-		for(j=0;j<MAX_WIDTH;j++){
-			if(buff[i*MAX_WIDTH+j].Symbol == 'P')
-			printf("%d ", buff[i*MAX_WIDTH+j].Att.pawn.PIDPawn);
-			else
-			printf("%d ", 0);
-		}
-		printf("\n");
-	}
-#endif
 
 	Terminate(); /* Kill off any players and deallocate SHMs and semaphores */
 
@@ -168,12 +134,16 @@ int main(){
 void Terminate(){
 	int i;
 	int status;
+	char ch;
+	printf("Press any key to exit....\n");
+	scanf("%c",&ch);
+
+
 	for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], 2);
 	while(PlayerPIDs[i] = wait(&status) != -1){i++;}
 	shmdt(buff); /* Deattach shared memory segment */
 	shmctl(shmID,IPC_RMID,NULL); /* Deallocate a shared memory */
 	shmctl(ScoreTableID,IPC_RMID,NULL);
-	shmctl(MessageQueueID,IPC_RMID,NULL);
 	remove_Sem(SemID);
 	remove_Sem(ChessboardSemaphoresID);
 }
@@ -215,6 +185,8 @@ void BuildPlayingField(){
 	printf("\033[0m");
 	printf(": %d\n\n", NumFlags);
 
+	#if BORDERS == 1
+
 	for(j=0;j<(MAX_WIDTH*2)+1;j++) printf("#"); printf("\n"); /* Print row separator */
 	for(i=0;i<MAX_HEIGHT;i++){
 		printf("#");
@@ -223,6 +195,25 @@ void BuildPlayingField(){
 		for(j=0;j<(MAX_WIDTH*2)+1;j++) printf("#"); printf("\n"); /* Print row separator */
 	}
 	printf("\n");
+
+	#elif BORDERS == 0
+
+
+	for(i=0;i<MAX_HEIGHT;i++){
+		for(j=0;j<MAX_WIDTH;j++){
+			Color(buff[i*MAX_WIDTH+j].Symbol,buff[i*MAX_WIDTH+j].Att.pawn.PIDParent);
+				if(buff[i*MAX_WIDTH+j].Symbol==' ')
+				printf(".");
+				else
+			 	printf("%c",buff[i*MAX_WIDTH+j].Symbol);
+			 	printf("\033[0m");
+		 }
+		printf("\n");
+	}
+	printf("\n");
+
+	#endif
+
 }
 
 void Color(char Symbol, int PIDPlayer){
@@ -238,7 +229,7 @@ void Color(char Symbol, int PIDPlayer){
 			case 2: printf("\033[0;34m");break;
 			case 3: printf("\033[0;35m");break;
 			case 4: printf("\033[0;36m");break;
-			case 5: printf("\033[1;31m");break;
+			case 5: printf("\033[0;31m");break;
 			case 6: printf("\033[1;32m");break;
 			case 7: printf("\033[1;33m");break;
 			case 8: printf("\033[1;34m");break;
@@ -265,7 +256,6 @@ void PlaceFlags(){ /* Randomly place flags in our field */
 			if(buff[i*MAX_WIDTH+j].Symbol=='F'){
 				buff[i*MAX_WIDTH+j].Symbol=' ';
 				buff[i*MAX_WIDTH+j].Att.Points=0;
-				release_Sem(ChessboardSemaphoresID,i*MAX_WIDTH+j);
 			 } /* Remove all old flags */
 
 	for(i=0;i<NumFlags;i++){
@@ -274,7 +264,7 @@ void PlaceFlags(){ /* Randomly place flags in our field */
 			randRow = (rand() % MAX_HEIGHT); /* Random number from 0 to MAX_HEIGHT - 1 */
 			randCol = (rand() % MAX_WIDTH); /* Random number from 0 to MAX_WIDTH - 1 */
 			Logn("Found",buff[randRow*MAX_WIDTH+randCol].Symbol);
-		}while(lock_Sem(ChessboardSemaphoresID,randRow*MAX_WIDTH+randCol,IPC_NOWAIT)==-1);/* If it returns with a -1, we assume the cell is OCCUPIED */
+		}while(buff[randRow*MAX_WIDTH+randCol].Symbol!=' ');
 		/*}while(buff[randRow*MAX_WIDTH+randCol].Symbol!=' ');*/ /* if the cell is ALREADY occupied, we re-randomize our row and column numbers */
 
 		buff[randRow*MAX_WIDTH+randCol].Symbol = 'F';
@@ -293,24 +283,27 @@ void handle_signal(int signal){
 		for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], 2);
 		while(PlayerPIDs[i] = wait(&status) != -1){i++;}
 		shmctl(shmID,IPC_RMID,NULL);
-		shmctl(MessageQueueID,IPC_RMID,NULL);
 		shmctl(ScoreTableID,IPC_RMID,NULL);
 		remove_Sem(SemID);
 		remove_Sem(ChessboardSemaphoresID);
 		exit(EXIT_SUCCESS);
 	}
 	if(signal==SIGUSR1){
-		printf("Caught SIGUSR1\n");
+		/*printf("Caught SIGUSR1\n");*/
 		NumFlags--;
-		printf("Flags remaining: %d\n", NumFlags);
+	/*	printf("Flags remaining: %d\n", NumFlags);*/
 		if(NumFlags==0){
 			PlaceFlags();
+			alarm(3);
 			ROUND++;
-			/*BuildPlayingField();*/
-		}
-
+		for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR2);
+		}else
 		for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR1);
+	}
 
+	if(signal==SIGALRM){
+		if(NumFlags>0)
+		Terminate();
 	}
 
 }
