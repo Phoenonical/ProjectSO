@@ -51,7 +51,7 @@ int main(int argc, char *argv[]){
   MyTarget = AttachMem(TargetID);
 
   /*MessageSemaphoreID = Semaphore(ftok("./pawn",myTurn), TOT_PAWNS);*/
-  for(i=0;i<TOT_PAWNS;i++) init_Sem(MessageSemaphoreID,i,0); /* For Message reading */
+  /*for(i=0;i<TOT_PAWNS;i++) init_Sem(MessageSemaphoreID,i,0);*/ /* For Message reading */
   ChessboardSemaphoresID = Semaphore(ftok("./master.c",64),MAX_HEIGHT*MAX_WIDTH);
   ScoreTableID = SharedMemID(ftok("./master",1),sizeof(struct Scoreboard)*TOT_PLAYERS);
   ScoreTable = AttachMem(ScoreTableID);
@@ -63,6 +63,7 @@ int main(int argc, char *argv[]){
 	sa.sa_handler = handle_signal;
 
   sigaction(SIGINT, &sa, NULL);
+  sigaction(SIGSEGV, &sa, NULL);
   /*sigaction(SIGUSR1, &sa, NULL);*/
 
   signal(SIGUSR1,handle_signal);
@@ -99,8 +100,7 @@ int main(int argc, char *argv[]){
   MyTarget[i].DestinationCol=MAX_INT;
   Logn("Pid", myPawns[i]);
 }*/
-
-  InteractwPawn();
+  CleanTargets();
   wait_Sem(ID,3); /* Wait until Master starts the game */
   /* So it begins - Thèoden Ednew, King of Rohan */
   Log("Beginning");
@@ -171,6 +171,7 @@ struct Destination FindClosest(){
               closest.DestinationCol=j;
               Index=l;
             }
+            printf("Distance: %d, Row: %d, Col: %d, Index: %d\n",MyTarget[Index].Distance,MyTarget[Index].DestinationRow,MyTarget[Index].DestinationCol,Index);
           }
 
           if(MyTarget[Index].Distance>closest.Distance){
@@ -249,6 +250,15 @@ void handle_signal(int signal){
   int i;
 	Logn("Signal", signal);
   printf("Signal %d from %d\n", signal, getpid());
+
+  if(signal==SIGSEGV){
+    int status;
+    printf("Player %d has just died\n", getpid());
+    for(i=0;i<TOT_PAWNS;i++){ kill(myPawns[i].PID, SIGINT);}
+    while(wait(&status) != -1);
+    shmctl(TargetID,IPC_RMID,NULL);
+    exit(EXIT_FAILURE);
+  }
 
   if(signal==SIGINT){
   int status;

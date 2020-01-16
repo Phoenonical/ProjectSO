@@ -96,7 +96,7 @@ int Move(){
   toWait.tv_sec=0;
   toWait.tv_nsec=MIN_HOLD_NSEC;
 
-  if(MAX_MOVES>0 && MyTarget[myTurn].Distance!=MAX_INT){
+  if(MAX_MOVES>0 && MyTarget[myTurn].Distance!=MAX_INT && MAX_MOVES<MyTarget[myTurn].Distance){
 
       if(PawnRow<MyTarget[myTurn].DestinationRow && Moved==0)
       if(timed_lock_Sem(ChessboardSemaphoresID,(PawnRow+1)*MAX_WIDTH+PawnCol,IPC_NOWAIT,MIN_HOLD_NSEC)!=-1){
