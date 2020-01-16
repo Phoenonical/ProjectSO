@@ -32,11 +32,14 @@ int lock_Sem(int semID, int semNum, int flag){ /* Processes may only continue if
 }
 
 int timed_lock_Sem(int semID, int semNum, int flag, unsigned long time){ /* Processes may only continue if semaphore's value is greater than 0 */
+  struct timespec toWait;
+  toWait.tv_sec=0;
+  toWait.tv_nsec=time;
   struct sembuf sops; /* A structure the semop(...) HAS to have.... needy bastard */
   sops.sem_num = semNum; /* The position of our semaphore in the array */
   sops.sem_op = -1; /* Decrements value by 1 */
   sops.sem_flg = flag;
-  return semtimedop(semID, &sops, 1,time); /* Processes pause here and may only continue if semaphore's value is greater than 0 or if the timer runs out*/
+  return semtimedop(semID, &sops, 1,toWait); /* Processes pause here and may only continue if semaphore's value is greater than 0 or if the timer runs out*/
 }
 
 

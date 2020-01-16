@@ -28,7 +28,7 @@ struct sigaction sa; /* Structure for later signal catching */
 int WaitforMSG();
 struct Distance ShortestDistance();
 void handle_signal(int signal);
-int Move(int Direction);
+int Move();
 
 int main(int argc, char* argv[]){
   int shmID;
@@ -73,11 +73,11 @@ int main(int argc, char* argv[]){
   TargetID = SharedMemID(ftok("./pawn",PlrTurn), sizeof(struct Destination)*TOT_PAWNS);
   MyTarget = AttachMem(TargetID);
 
-  MessageSemaphoreID = Semaphore(ftok("./pawn",PlrTurn), 0);
+  /*MessageSemaphoreID = Semaphore(ftok("./pawn",PlrTurn), 0);*/
   ChessboardSemaphoresID = Semaphore(ftok("./master.c",64),MAX_HEIGHT*MAX_WIDTH);
 
   wait_Sem(SemID,3);
-  
+
   while(1){
 
     Move();
@@ -103,7 +103,7 @@ int Move(){
           }
 
       if(PawnRow>MyTarget[myTurn].DestinationRow && Moved=0)
-      if(lock_Sem(ChessboardSemaphoresID,(PawnRow-1)*MAX_WIDTH+PawnCol,IPC_NOWAIT)!=-1){
+      if(timed_lock_Sem(ChessboardSemaphoresID,(PawnRow-1)*MAX_WIDTH+PawnCol,IPC_NOWAIT,MIN_HOLD_NSEC)!=-1){
             if(buff[(PawnRow-1)*MAX_WIDTH+PawnCol].Symbol=='F'){CaughtFlag=1;}
               buff[PawnRow*MAX_WIDTH+PawnCol].Symbol=' ';
               buff[PawnRow*MAX_WIDTH+PawnCol].Att.Points=0;
@@ -113,7 +113,7 @@ int Move(){
           }
 
       if(PawnCol>MyTarget[myTurn].DestinationCol && Moved=0)
-      if(lock_Sem(ChessboardSemaphoresID,PawnRow*MAX_WIDTH+(PawnCol+1),IPC_NOWAIT)!=-1){
+      if(timed_lock_Sem(ChessboardSemaphoresID,PawnRow*MAX_WIDTH+(PawnCol+1),IPC_NOWAIT)!=-1){
             if(buff[PawnRow*MAX_WIDTH+(PawnCol+1)].Symbol=='F'){CaughtFlag=1;}
               buff[PawnRow*MAX_WIDTH+PawnCol].Symbol=' ';
               buff[PawnRow*MAX_WIDTH+PawnCol].Att.Points=0;
@@ -123,7 +123,7 @@ int Move(){
           }
 
       if(PawnCol>MyTarget[myTurn].DestinationCol && Moved=0)
-      if(lock_Sem(ChessboardSemaphoresID,PawnRow*MAX_WIDTH+(PawnCol-1),IPC_NOWAIT)!=-1){
+      if(timed_lock_Sem(ChessboardSemaphoresID,PawnRow*MAX_WIDTH+(PawnCol-1),IPC_NOWAIT)!=-1){
               if(buff[PawnRow*MAX_WIDTH+(PawnCol-1)].Symbol=='F'){CaughtFlag=1;}
               buff[PawnRow*MAX_WIDTH+PawnCol].Symbol=' ';
               buff[PawnRow*MAX_WIDTH+PawnCol].Att.Points=0;

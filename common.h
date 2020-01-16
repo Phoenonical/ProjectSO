@@ -54,7 +54,6 @@ Though, after the first instructions, the master is informed and starts the time
 #define GORIGHT 3
 #define GOLEFT 4
 
-
 struct Pawn{
 	int PIDParent;
 	int PIDPawn;
