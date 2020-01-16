@@ -7,7 +7,7 @@ void PlacePawn(int i); /* Place pawn on the playing field */
 void CreatePawn(int RandRow, int RandCol, int PlayerTurn, int i); /* Create the pawn process */
 char* tostring(int Num);
 void InteractwPawn(); /* Ask pawn which flag is closest, send instructions and etc... */
-struct Distance FindClosest();
+struct Destination FindClosest();
 void handle_signal(int signal);
 void CleanTargets();
 
@@ -22,13 +22,13 @@ int MAX_FLAGS;
 struct Cell *buff; /* The playing field */
 struct Message *MessageBuffer;
 struct Scoreboard *ScoreTable;
-struct Distance *MyTarget; /* Which flag am I'm aiming for with which pawn? */
+struct Destination *MyTarget; /* Which flag am I'm aiming for with which pawn? */
 struct PawnInfo *myPawns; /* Storing pawn PIDs */
 int myPID;
 int myTurn;
 int MessageSemaphoreID;
 int ChessboardSemaphoresID;
-int TargetID
+int TargetID;
 int ScoreTableID;
 int Newround=1;
 int ID;
@@ -93,9 +93,9 @@ int main(int argc, char *argv[]){
   }
 
   for(i=0;i<TOT_PAWNS;i++){
-  MyTarget[i].distance=MAX_INT;
-  MyTarget[i].Row=MAX_INT;
-  MyTarget[i].Col=MAX_INT;
+  MyTarget[i].Distance=MAX_INT;
+  MyTarget[i].DestinationRow=MAX_INT;
+  MyTarget[i].DestinationCol=MAX_INT;
   Logn("Pid", myPawns[i]);
   }
 
@@ -112,7 +112,9 @@ int main(int argc, char *argv[]){
     /*release_Sem(ID, 0);*/
     /*Logn("Incremented Semaphore",semctl(ID, 0, GETVAL));*/
 
+
     while(1){
+      wait_Sem(ID,3);
       if(Newround){
         CleanTargets();
         InteractwPawn();
@@ -124,12 +126,13 @@ int main(int argc, char *argv[]){
 }
 
 void CleanTargets(){
+  int i,j;
   for(i=0;i<TOT_PAWNS;i++){
     for(j=0;j<TOT_PAWNS;j++){
-      if(MyTarget[i].Destination>MyTarget[j]->Destination && MyTarget[i].Row==MyTarget[j]->Row && MyTarget[i].Col==MyTarget[j].Col){
-        MyTarget[i].Destination=MAX_INT;
-        MyTarget[i].Row=-1;
-        MyTarget[i].Col=-1;
+      if(MyTarget[i].Distance>MyTarget[j].Distance && MyTarget[i].DestinationRow==MyTarget[j].DestinationRow && MyTarget[i].DestinationCol==MyTarget[j].DestinationCol){
+        MyTarget[i].Distance=MAX_INT;
+        MyTarget[i].DestinationRow=-1;
+        MyTarget[i].DestinationCol=-1;
       }
     }
   }
@@ -140,15 +143,16 @@ void InteractwPawn(){
    int i,j;
    struct Destination temp;
    for(i=0;i<TOT_PAWNS;i++){
-     MyTarget[i] = FindClosest(i);
+     MyTarget[i] = FindClosest();
    }
 }
 
-struct Destination FindClosest(int Index){
+struct Destination FindClosest(){
   int i,j,l,k,Index;
-  char NottoCheck[TOT_PAWNS];
+  char *NottoCheck;
   struct Destination closest;
   int distance;
+  NottoCheck=malloc(sizeof(char)*TOT_PAWNS);
   for(i=0;i<MAX_HEIGHT;i++){
     for(j=0;j<MAX_WIDTH;j++){
       if(buff[i*MAX_WIDTH+j].Symbol=='F'){
@@ -158,13 +162,13 @@ struct Destination FindClosest(int Index){
 
             for(l=0;l<TOT_PAWNS;l++){
             distance=0;
-            if(myPawns[l]->Row>i) distance+=Row-i;
-            else if(myPawns[l]->Row<i) distance+=i-Row;
-            else if(myPawns[l]->Row==i) distance+=0;
+            if(myPawns[l].Row>i) distance+=myPawns[l].Row-i;
+            else if(myPawns[l].Row<i) distance+=i-myPawns[l].Row;
+            else if(myPawns[l].Row==i) distance+=0;
 
-            if(myPawns[l]->Col>j) distance+=Col-j;
-            else if(myPawns[l]->Col<j) distance+=j-Col;
-            else if(myPawns[l]->Col==j) distance+=0;
+            if(myPawns[l].Col>j) distance+=myPawns[l].Col-j;
+            else if(myPawns[l].Col<j) distance+=j-myPawns[l].Col;
+            else if(myPawns[l].Col==j) distance+=0;
 
             if(closest.Distance>distance && NottoCheck[l]){
               closest.Distance=distance;
@@ -175,9 +179,9 @@ struct Destination FindClosest(int Index){
           }
 
           if(MyTarget[Index].Distance>closest.Distance){
-            MyTarget[Index]->Distance=closest.Distance;
-            MyTarget[Index]->DestinationRow=closest.DestinationRow;
-            MyTarget[Index]->DestinationCol=closest.DestinationCol;
+            MyTarget[Index].Distance=closest.Distance;
+            MyTarget[Index].DestinationRow=closest.DestinationRow;
+            MyTarget[Index].DestinationCol=closest.DestinationCol;
 
           }else NottoCheck[Index]=1;
         }while(NottoCheck[Index]);
@@ -203,8 +207,8 @@ void PlacePawn(int i){
     buff[randRow*MAX_WIDTH+randCol].Symbol='P'; /* Placing a pawn in a random location */
     CreatePawn(randRow, randCol, myTurn, i); /* Creating the process pawn */
     /*Wait(1);*/
-    myPawns[i]->Row=randRow;
-    myPawns[i]->Col=randCol;
+    myPawns[i].Row=randRow;
+    myPawns[i].Col=randCol;
     Log("Placed pawn at");
     Logn("Row",randRow);
     Logn("Column",randCol);
@@ -237,7 +241,7 @@ void CreatePawn(int randRow, int randCol, int PlayerTurn, int i){
   args[4] = Plturn;
   args[5] = NULL;
 
-	switch(myPawns[i]->PID=fork()){
+	switch(myPawns[i].PID=fork()){
 	case -1: printf("ERROR: Error creating fork\n"); TERMINATE; break;
 	case 0:  execve("./pawn", args, NULL); TERMINATE; break;
 	/*case 0: execvp(args[0],args); exit(EXIT_FAILURE);*/
@@ -249,10 +253,10 @@ void handle_signal(int signal){
   int i;
 	Logn("Signal", signal);
   /*printf("Signal %d\n", signal);*/
-  if(signal==2){
+  if(signal==SIGINT){
   int status;
-  for(i=0;i<TOT_PLAYERS;i++) kill(myPawns[i], 2);
-  while(myPawns[i] = wait(&status) != -1){i++;}
+  for(i=0;i<TOT_PLAYERS;i++){ kill(myPawns[i].PID, SIGINT); printf("Killed %d\n", myPawns[i].PID);}
+  while(wait(&status) != -1){i++;}
   remove_Sem(MessageSemaphoreID);
   exit(EXIT_SUCCESS);
   }

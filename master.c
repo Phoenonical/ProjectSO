@@ -9,7 +9,7 @@ void handle_signal(int signal);
 void BuildPlayingField();
 void Color(char Symbol, int PIDPlayer);
 void PlaceFlags();
-void SetupPlayers();
+void SetupPlayers(int i);
 void Terminate();
 
 int TOT_PLAYERS;
@@ -19,6 +19,7 @@ int MAX_WIDTH;
 int MAX_HEIGHT;
 int MIN_FLAGS;
 int MAX_FLAGS;
+int MIN_HOLD_NSEC;
 
 int ROUND;
 
@@ -46,6 +47,7 @@ int main(){
 	MAX_HEIGHT=ConfigParser("./Settings.conf", "MAX_HEIGHT");
 	MAX_FLAGS=ConfigParser("./Settings.conf", "MAX_FLAGS");
 	MIN_FLAGS=ConfigParser("./Settings.conf", "MIN_FLAGS");
+	MIN_HOLD_NSEC=ConfigParser("./Settings.conf", "MIN_HOLD_NSEC");
 
 	bzero(&sa, sizeof(sa));
 	sa.sa_handler = handle_signal;
@@ -94,7 +96,7 @@ int main(){
 
 	/*lock_Sem(SemID,0); *//* Lock the semaphore until all players have been generated */
 	PlayerPIDs = malloc(sizeof(int)*TOT_PLAYERS);
-	for(i=0;i<TOT_PLAYERS;i++){SetupPlayers(); /*printf("PlayerPIDs: %d\n",PlayerPIDs[i]);*/ }/* Create all player processes */
+	for(i=0;i<TOT_PLAYERS;i++){SetupPlayers(i); /*printf("PlayerPIDs: %d\n",PlayerPIDs[i]);*/ }/* Create all player processes */
 	Wait(1);
 	release_Sem(SemID,0); /* Allows the players to place down their pawns */
 
@@ -113,7 +115,8 @@ int main(){
 	init_Sem(SemID, 1, 0); /* After a player has finished their turn, it'll wait for the rest */
 	init_Sem(SemID, 2, 1); /* Signaling */
 
-
+  toWait.tv_sec=0;
+  toWait.tv_nsec=MIN_HOLD_NSEC;
 	PlaceFlags(); /* Place down flags on the board */
 	sleep(1); /* Make sure everyone is infact done */
 	init_Sem(SemID, 3, 0); /* Releasing the beasts */
@@ -124,6 +127,7 @@ int main(){
 
 	while(1){
 		BuildPlayingField();
+		  nanosleep(&toWait,NULL);
 	}
 
 
@@ -135,31 +139,34 @@ void Terminate(){
 	int i;
 	int status;
 	char ch;
+	release_Sem(SemID,3);
 	printf("Press any key to exit....\n");
 	scanf("%c",&ch);
 
 
-	for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], 2);
-	while(PlayerPIDs[i] = wait(&status) != -1){i++;}
+	for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGINT);
+	while(wait(&status) != -1);
 	shmdt(buff); /* Deattach shared memory segment */
 	shmctl(shmID,IPC_RMID,NULL); /* Deallocate a shared memory */
 	shmctl(ScoreTableID,IPC_RMID,NULL);
 	remove_Sem(SemID);
 	remove_Sem(ChessboardSemaphoresID);
+	exit(EXIT_SUCCESS);
 }
 
-void SetupPlayers(){
-	static int i=0;
+void SetupPlayers(int i){
 	char Num[10];
+	char *(args)[3];
 	sprintf(Num,"%d",i+1);
-	char *args[] = {"./player", Num, NULL};
-	/*args[0]="./player";
-	args[1]=Num;*/
+	/*char *args[] = {"./player", Num, NULL};*/
+	args[0]="./player";
+	args[1]=Num;
+	args[2]=NULL;
 	switch(PlayerPIDs[i]=fork()){
 	case -1: printf("ERROR: Error creating fork\n"); exit(EXIT_FAILURE);break;
 	case 0:  execve("./player", args, NULL); exit(EXIT_FAILURE);break;
 	/*case 0: execvp(args[0],args); exit(EXIT_FAILURE);*/
-	default: i++; Wait(1); break;
+	default: Wait(1); break;
 	}
 }
 
