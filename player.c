@@ -50,7 +50,7 @@ int main(int argc, char *argv[]){
   TargetID = SharedMemID(ftok("./pawn",myTurn), sizeof(struct Destination)*TOT_PAWNS);
   MyTarget = AttachMem(TargetID);
 
-  MessageSemaphoreID = Semaphore(ftok("./pawn",myTurn), TOT_PAWNS);
+  /*MessageSemaphoreID = Semaphore(ftok("./pawn",myTurn), TOT_PAWNS);*/
   for(i=0;i<TOT_PAWNS;i++) init_Sem(MessageSemaphoreID,i,0); /* For Message reading */
   ChessboardSemaphoresID = Semaphore(ftok("./master.c",64),MAX_HEIGHT*MAX_WIDTH);
   ScoreTableID = SharedMemID(ftok("./master",1),sizeof(struct Scoreboard)*TOT_PLAYERS);
@@ -92,12 +92,13 @@ int main(int argc, char *argv[]){
     Log("Done waiting, starting new turn");
   }
 
+/*
   for(i=0;i<TOT_PAWNS;i++){
   MyTarget[i].Distance=MAX_INT;
   MyTarget[i].DestinationRow=MAX_INT;
   MyTarget[i].DestinationCol=MAX_INT;
   Logn("Pid", myPawns[i]);
-  }
+}*/
 
   InteractwPawn();
   wait_Sem(ID,3); /* Wait until Master starts the game */
@@ -114,10 +115,11 @@ int main(int argc, char *argv[]){
 
 
     while(1){
-      wait_Sem(ID,3);
+      /*wait_Sem(ID,3);*/
       if(Newround){
         CleanTargets();
         InteractwPawn();
+        Newround=0;
       }
     }
 
@@ -126,25 +128,18 @@ int main(int argc, char *argv[]){
 }
 
 void CleanTargets(){
-  int i,j;
+  int i;
   for(i=0;i<TOT_PAWNS;i++){
-    for(j=0;j<TOT_PAWNS;j++){
-      if(MyTarget[i].Distance>MyTarget[j].Distance && MyTarget[i].DestinationRow==MyTarget[j].DestinationRow && MyTarget[i].DestinationCol==MyTarget[j].DestinationCol){
         MyTarget[i].Distance=MAX_INT;
-        MyTarget[i].DestinationRow=-1;
-        MyTarget[i].DestinationCol=-1;
-      }
-    }
+        MyTarget[i].DestinationRow=0;
+        MyTarget[i].DestinationCol=0;
   }
 }
 
 void InteractwPawn(){
    char Moved=0;
    int i,j;
-   struct Destination temp;
-   for(i=0;i<TOT_PAWNS;i++){
-     MyTarget[i] = FindClosest();
-   }
+   FindClosest();
 }
 
 struct Destination FindClosest(){
@@ -156,7 +151,7 @@ struct Destination FindClosest(){
   for(i=0;i<MAX_HEIGHT;i++){
     for(j=0;j<MAX_WIDTH;j++){
       if(buff[i*MAX_WIDTH+j].Symbol=='F'){
-          for(k=0;k<TOT_PAWNS;k++) NottoCheck[k]=0;
+          for(k=0;k<TOT_PAWNS;k++) NottoCheck[k]=1;
           do{
             closest.Distance=MAX_INT;
 
@@ -182,13 +177,14 @@ struct Destination FindClosest(){
             MyTarget[Index].Distance=closest.Distance;
             MyTarget[Index].DestinationRow=closest.DestinationRow;
             MyTarget[Index].DestinationCol=closest.DestinationCol;
-
-          }else NottoCheck[Index]=1;
-        }while(NottoCheck[Index]);
+            printf("Distance: %d, Row: %d, Col: %d, Index: %d\n",MyTarget[Index].Distance,MyTarget[Index].DestinationRow,MyTarget[Index].DestinationCol,Index);
+          }else NottoCheck[Index]=0;
+        }while(!NottoCheck[Index]);
 
       }
     }
   }
+  free(NottoCheck);
 }
 
 
@@ -245,26 +241,31 @@ void CreatePawn(int randRow, int randCol, int PlayerTurn, int i){
 	case -1: printf("ERROR: Error creating fork\n"); TERMINATE; break;
 	case 0:  execve("./pawn", args, NULL); TERMINATE; break;
 	/*case 0: execvp(args[0],args); exit(EXIT_FAILURE);*/
-	default: i++; Wait(1); break;
+	default: Wait(1); break;
 	}
 }
 
 void handle_signal(int signal){
   int i;
 	Logn("Signal", signal);
-  /*printf("Signal %d\n", signal);*/
+  printf("Signal %d from %d\n", signal, getpid());
+
   if(signal==SIGINT){
   int status;
-  for(i=0;i<TOT_PLAYERS;i++){ kill(myPawns[i].PID, SIGINT); printf("Killed %d\n", myPawns[i].PID);}
-  while(wait(&status) != -1){i++;}
-  remove_Sem(MessageSemaphoreID);
+  for(i=0;i<TOT_PAWNS;i++){ kill(myPawns[i].PID, SIGINT);}
+  while(wait(&status) != -1);
+  /*remove_Sem(MessageSemaphoreID);*/
+  shmctl(TargetID,IPC_RMID,NULL);
   exit(EXIT_SUCCESS);
   }
+
   if(signal==SIGUSR1){
     for(i=0;i<TOT_PAWNS;i++)
-    if(MyTarget[i].Distance!=MAX_INT)
+    if(MyTarget[i].Distance!=MAX_INT){
+      printf("Target Row %d, target Col %d\n",MyTarget[i].DestinationRow,MyTarget[i].DestinationCol);
       if(buff[MyTarget[i].DestinationRow*MAX_WIDTH+MyTarget[i].DestinationCol].Symbol!='F')
         MyTarget[i].Distance=MAX_INT;
+        }
   }
   if(signal==SIGUSR2){
     Newround=1;

@@ -96,7 +96,7 @@ int main(){
 
 	/*lock_Sem(SemID,0); *//* Lock the semaphore until all players have been generated */
 	PlayerPIDs = malloc(sizeof(int)*TOT_PLAYERS);
-	for(i=0;i<TOT_PLAYERS;i++){SetupPlayers(i); /*printf("PlayerPIDs: %d\n",PlayerPIDs[i]);*/ }/* Create all player processes */
+	for(i=0;i<TOT_PLAYERS;i++){SetupPlayers(i); printf("PlayerPIDs: %d\n",PlayerPIDs[i]); }/* Create all player processes */
 	Wait(1);
 	release_Sem(SemID,0); /* Allows the players to place down their pawns */
 
@@ -288,6 +288,7 @@ void handle_signal(int signal){
 	Logn("Signal", signal);
 	if(signal==2){
 		for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], 2);
+		i=0;
 		while(PlayerPIDs[i] = wait(&status) != -1){i++;}
 		shmctl(shmID,IPC_RMID,NULL);
 		shmctl(ScoreTableID,IPC_RMID,NULL);
@@ -309,8 +310,17 @@ void handle_signal(int signal){
 	}
 
 	if(signal==SIGALRM){
-		if(NumFlags>0)
-		Terminate();
+		if(NumFlags>0){
+		/*Terminate();*/
+		for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], 2);
+		i=0;
+		while(wait(&status) != -1){i++;}
+		shmctl(shmID,IPC_RMID,NULL);
+		shmctl(ScoreTableID,IPC_RMID,NULL);
+		remove_Sem(SemID);
+		remove_Sem(ChessboardSemaphoresID);
+		exit(EXIT_SUCCESS);
+		}
 	}
 
 }

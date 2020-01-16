@@ -36,11 +36,10 @@ int main(int argc, char* argv[]){
   int TRow,RCol;
   char Moved=0;
 
-  /*bzero(&sa, sizeof(sa));
+  bzero(&sa, sizeof(sa));
   sa.sa_handler = handle_signal;
 
-  sigaction(SIGINT, &sa, NULL);*/
-
+  sigaction(SIGINT, &sa, NULL);
   signal(SIGUSR2,handle_signal);
 
   MAX_WIDTH=ConfigParser("./Settings.conf", "MAX_WIDTH");
@@ -160,5 +159,7 @@ int Move(){
 
 
 void handle_signal(int signal){
+  if(signal==SIGINT)
+  exit(EXIT_SUCCESS);
 	Logn("Signal", signal);
 }
