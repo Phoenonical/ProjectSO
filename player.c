@@ -65,9 +65,9 @@ int main(int argc, char *argv[]){
 
   sigaction(SIGINT, &sa, NULL);
   sigaction(SIGSEGV, &sa, NULL);
-  /*sigaction(SIGUSR1, &sa, NULL);*/
+  sigaction(SIGUSR1, &sa, NULL);
 
-  signal(SIGUSR1,handle_signal);
+  /*signal(SIGUSR1,handle_signal);*/
 
 
 
@@ -118,11 +118,11 @@ int main(int argc, char *argv[]){
 
 
     while(1){
-      wait_Sem(ID,3);
       if(Newround){
         CleanTargets();
         InteractwPawn();
         release_Sem(ID,4);
+        wait_Sem(ID,3);
         Newround=0;
       }
     }
@@ -187,7 +187,6 @@ struct Destination FindClosest(){
             MyTarget[Index].Distance=closest.Distance;
             MyTarget[Index].DestinationRow=closest.DestinationRow;
             MyTarget[Index].DestinationCol=closest.DestinationCol;
-            printf("Distance: %d, Row: %d, Col: %d, Index: %d\n",MyTarget[Index].Distance,MyTarget[Index].DestinationRow,MyTarget[Index].DestinationCol,Index);
           }else NottoCheck[Index]=0;
         }while(!NottoCheck[Index]);
 
@@ -313,10 +312,11 @@ void handle_signal(int signal){
   if(signal==SIGUSR1){
     for(i=0;i<TOT_PAWNS;i++)
     if(MyTarget[i].Distance!=MAX_INT){
-      printf("Target Row %d, target Col %d\n",MyTarget[i].DestinationRow,MyTarget[i].DestinationCol);
+      /*printf("Target Row %d, target Col %d\n",MyTarget[i].DestinationRow,MyTarget[i].DestinationCol);*/
       if(buff[MyTarget[i].DestinationRow*MAX_WIDTH+MyTarget[i].DestinationCol].Symbol!='F')
         MyTarget[i].Distance=MAX_INT;
         }
+      release_Sem(ID,4);
   }
   if(signal==SIGUSR2){
     Newround=1;

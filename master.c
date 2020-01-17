@@ -31,6 +31,7 @@ int MessageQueueID;
 int ChessboardSemaphoresID;
 int SemID;
 int ScoreTableID;
+int Signaled=0;
 
 int main(){
 	int i, j;
@@ -53,8 +54,8 @@ int main(){
 	sa.sa_handler = handle_signal;
 
 	sigaction(SIGINT, &sa, NULL);
-	/*sigaction(SIGUSR1, &sa, NULL);*/
-	signal(SIGUSR1,handle_signal);
+	sigaction(SIGUSR1, &sa, NULL);
+	/*signal(SIGUSR1,handle_signal);*/
 	signal(SIGALRM,handle_signal);
 
 	/*for(i = 0; i<NSIG; i++){
@@ -129,6 +130,23 @@ int main(){
 	while(1){
 		BuildPlayingField();
 		  nanosleep(&toWait,NULL);
+
+			if(Signaled){
+			init_Sem(SemID,4,0);
+			NumFlags--;
+		/*	printf("Flags remaining: %d\n", NumFlags);*/
+			if(NumFlags==0){
+				PlaceFlags();
+				alarm(3);
+				ROUND++;
+				for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR2);
+			}else for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR1);
+
+				while(!compare_Sem(SemID,4,TOT_PLAYERS));
+				lock_Sem(SemID,3,0);
+				Signaled=0;
+			}
+
 	}
 
 
@@ -298,20 +316,8 @@ void handle_signal(int signal){
 		exit(EXIT_SUCCESS);
 	}
 	if(signal==SIGUSR1){
-		/*printf("Caught SIGUSR1\n");*/
-		NumFlags--;
-	/*	printf("Flags remaining: %d\n", NumFlags);*/
-		if(NumFlags==0){
-			init_Sem(SemID,3,1);
-			PlaceFlags();
-			alarm(3);
-			ROUND++;
-			init_Sem(SemID,4,0);
-			for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR2);
-			while(!compare_Sem(SemID,4,TOT_PLAYERS));
-			init_Sem(SemID,3,0);
-			}else
-			for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR1);
+		release_Sem(SemID,3);
+		Signaled=1;
 		}
 
 	if(signal==SIGALRM){
