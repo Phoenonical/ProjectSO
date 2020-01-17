@@ -8,6 +8,7 @@ void CreatePawn(int RandRow, int RandCol, int PlayerTurn, int i); /* Create the 
 char* tostring(int Num);
 void InteractwPawn(); /* Ask pawn which flag is closest, send instructions and etc... */
 struct Destination FindClosest();
+struct Destination FindClosestFlag(int Index);
 void handle_signal(int signal);
 void CleanTargets();
 
@@ -30,7 +31,7 @@ int MessageSemaphoreID;
 int ChessboardSemaphoresID;
 int TargetID;
 int ScoreTableID;
-int Newround=1;
+int Newround=0;
 int ID;
 
 
@@ -100,7 +101,9 @@ int main(int argc, char *argv[]){
   MyTarget[i].DestinationCol=MAX_INT;
   Logn("Pid", myPawns[i]);
 }*/
+  wait_Sem(ID,2);
   CleanTargets();
+  InteractwPawn();
   wait_Sem(ID,3); /* Wait until Master starts the game */
   /* So it begins - Thèoden Ednew, King of Rohan */
   Log("Beginning");
@@ -115,10 +118,11 @@ int main(int argc, char *argv[]){
 
 
     while(1){
-      /*wait_Sem(ID,3);*/
+      wait_Sem(ID,3);
       if(Newround){
         CleanTargets();
         InteractwPawn();
+        release_Sem(ID,4);
         Newround=0;
       }
     }
@@ -131,15 +135,18 @@ void CleanTargets(){
   int i;
   for(i=0;i<TOT_PAWNS;i++){
         MyTarget[i].Distance=MAX_INT;
-        MyTarget[i].DestinationRow=0;
-        MyTarget[i].DestinationCol=0;
+        MyTarget[i].DestinationRow=-1;
+        MyTarget[i].DestinationCol=-1;
   }
 }
 
 void InteractwPawn(){
    char Moved=0;
    int i,j;
-   FindClosest();
+   /*FindClosest();*/
+   for(i=0;i<TOT_PAWNS;i++){
+     MyTarget[i]=FindClosestFlag(i);
+   }
 }
 
 struct Destination FindClosest(){
@@ -153,6 +160,7 @@ struct Destination FindClosest(){
       if(buff[i*MAX_WIDTH+j].Symbol=='F'){
           for(k=0;k<TOT_PAWNS;k++) NottoCheck[k]=1;
           do{
+
             closest.Distance=MAX_INT;
 
             for(l=0;l<TOT_PAWNS;l++){
@@ -171,7 +179,8 @@ struct Destination FindClosest(){
               closest.DestinationCol=j;
               Index=l;
             }
-            printf("Distance: %d, Row: %d, Col: %d, Index: %d\n",MyTarget[Index].Distance,MyTarget[Index].DestinationRow,MyTarget[Index].DestinationCol,Index);
+            /*printf("Distance: %d, Row: %d, Col: %d, Index: %d\n",MyTarget[Index].Distance,MyTarget[Index].DestinationRow,MyTarget[Index].DestinationCol,Index);
+            */
           }
 
           if(MyTarget[Index].Distance>closest.Distance){
@@ -186,6 +195,38 @@ struct Destination FindClosest(){
     }
   }
   free(NottoCheck);
+}
+
+struct Destination FindClosestFlag(int Index){
+  int Row,Col, Distance;
+  int i,j;
+  struct Destination closest;
+  closest.Distance=MAX_INT;
+  Row=myPawns[Index].Row;
+  Col=myPawns[Index].Col;
+  for(i=0;i<MAX_HEIGHT;i++){
+    for(j=0;j<MAX_WIDTH;j++){
+      if(buff[i*MAX_WIDTH+j].Symbol=='F'){
+        Distance=0;
+
+        if(Row>i) Distance+=Row-i;
+        else if(Row<i) Distance+=i-Row;
+        else if(Row==i) Distance+=0;
+
+        if(Col>j) Distance+=Col-j;
+        else if(Col<j) Distance+=j-Col;
+        else if(Col==j) Distance+=0;
+
+        if(Distance<closest.Distance){
+          closest.Distance=Distance;
+          closest.DestinationRow=i;
+          closest.DestinationCol=j;
+        }
+
+      }/* END OF if(buff[i*MAX_WIDTH+j].Symbol=='F') */
+    }/* END OF for(j=0;j<MAX_WIDTH;j++) */
+  }/* END OF for(i=0;i<MAX_HEIGHT;i++) */
+  return closest;
 }
 
 

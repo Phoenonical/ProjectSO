@@ -26,8 +26,6 @@ int ScoreTableID;
 int TargetID;
 struct sigaction sa; /* Structure for later signal catching */
 
-int WaitforMSG();
-struct Distance ShortestDistance();
 void handle_signal(int signal);
 int Move();
 
@@ -80,13 +78,14 @@ int main(int argc, char* argv[]){
   wait_Sem(SemID,3);
 
   while(1){
-    wait_Sem(SemID,3);
     Move();
-
+    wait_Sem(SemID,3);
     /*printf("Later Semaphore in pawn is %d\n", semctl(MessageSemaphoreID, myTurn, GETVAL));*/
   }
 
 }
+
+
 
 
 int Move(){
@@ -95,10 +94,8 @@ int Move(){
   struct timespec toWait;
   toWait.tv_sec=0;
   toWait.tv_nsec=MIN_HOLD_NSEC;
-
-  if(MAX_MOVES>0 && MyTarget[myTurn].Distance!=MAX_INT && MAX_MOVES<MyTarget[myTurn].Distance){
-
-      if(PawnRow<MyTarget[myTurn].DestinationRow && Moved==0)
+  if(MAX_MOVES>0 && MyTarget[myTurn].Distance!=MAX_INT && MAX_MOVES>MyTarget[myTurn].Distance){
+      if(PawnRow<MyTarget[myTurn].DestinationRow && Moved==0 && PawnRow<MAX_HEIGHT)
       if(timed_lock_Sem(ChessboardSemaphoresID,(PawnRow+1)*MAX_WIDTH+PawnCol,IPC_NOWAIT,MIN_HOLD_NSEC)!=-1){
           if(buff[(PawnRow+1)*MAX_WIDTH+PawnCol].Symbol=='F'){CaughtFlag=1;}
               buff[PawnRow*MAX_WIDTH+PawnCol].Symbol=' ';
@@ -108,7 +105,7 @@ int Move(){
               Moved=1;
           }
 
-      if(PawnRow>MyTarget[myTurn].DestinationRow && Moved==0)
+      if(PawnRow>MyTarget[myTurn].DestinationRow && Moved==0 && PawnRow>0)
       if(timed_lock_Sem(ChessboardSemaphoresID,(PawnRow-1)*MAX_WIDTH+PawnCol,IPC_NOWAIT,MIN_HOLD_NSEC)!=-1){
             if(buff[(PawnRow-1)*MAX_WIDTH+PawnCol].Symbol=='F'){CaughtFlag=1;}
               buff[PawnRow*MAX_WIDTH+PawnCol].Symbol=' ';
@@ -118,7 +115,7 @@ int Move(){
               Moved=1;
           }
 
-      if(PawnCol<MyTarget[myTurn].DestinationCol && Moved==0)
+      if(PawnCol<MyTarget[myTurn].DestinationCol && Moved==0 && PawnCol<MAX_WIDTH)
       if(timed_lock_Sem(ChessboardSemaphoresID,PawnRow*MAX_WIDTH+(PawnCol+1),IPC_NOWAIT,MIN_HOLD_NSEC)!=-1){
             if(buff[PawnRow*MAX_WIDTH+(PawnCol+1)].Symbol=='F'){CaughtFlag=1;}
               buff[PawnRow*MAX_WIDTH+PawnCol].Symbol=' ';
@@ -128,7 +125,7 @@ int Move(){
               Moved=1;
           }
 
-      if(PawnCol>MyTarget[myTurn].DestinationCol && Moved==0)
+      if(PawnCol>MyTarget[myTurn].DestinationCol && Moved==0 && PawnCol>0)
       if(timed_lock_Sem(ChessboardSemaphoresID,PawnRow*MAX_WIDTH+(PawnCol-1),IPC_NOWAIT,MIN_HOLD_NSEC)!=-1){
               if(buff[PawnRow*MAX_WIDTH+(PawnCol-1)].Symbol=='F'){CaughtFlag=1;}
               buff[PawnRow*MAX_WIDTH+PawnCol].Symbol=' ';

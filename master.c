@@ -88,9 +88,9 @@ int main(){
 	SemID = Semaphore(ftok("./player.c",68), 5);
   init_Sem(SemID, 0, 0); /* Players */
 	init_Sem(SemID, 1, 0);
-	init_Sem(SemID, 2, 0);
+	init_Sem(SemID, 2, 1);
 	init_Sem(SemID, 3, 1); /* Game start */
-	init_Sem(SemID, 4, 1);
+	init_Sem(SemID, 4, 0);
 
 	Logn("SemID is",SemID);
 
@@ -113,11 +113,12 @@ int main(){
 	/* Re-using the old semaphores */
 	init_Sem(SemID, 0, 0); /* Make players take turns */
 	init_Sem(SemID, 1, 0); /* After a player has finished their turn, it'll wait for the rest */
-	init_Sem(SemID, 2, 1); /* Signaling */
 
   toWait.tv_sec=0;
   toWait.tv_nsec=MIN_HOLD_NSEC;
 	PlaceFlags(); /* Place down flags on the board */
+	BuildPlayingField();
+	init_Sem(SemID, 2, 0);
 	sleep(1); /* Make sure everyone is infact done */
 	init_Sem(SemID, 3, 0); /* Releasing the beasts */
 
@@ -301,13 +302,17 @@ void handle_signal(int signal){
 		NumFlags--;
 	/*	printf("Flags remaining: %d\n", NumFlags);*/
 		if(NumFlags==0){
+			init_Sem(SemID,3,1);
 			PlaceFlags();
 			alarm(3);
 			ROUND++;
-		for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR2);
-		}else
-		for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR1);
-	}
+			init_Sem(SemID,4,0);
+			for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR2);
+			while(!compare_Sem(SemID,4,TOT_PLAYERS));
+			init_Sem(SemID,3,0);
+			}else
+			for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR1);
+		}
 
 	if(signal==SIGALRM){
 		if(NumFlags>0){
