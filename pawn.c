@@ -76,7 +76,6 @@ int main(int argc, char* argv[]){
   ChessboardSemaphoresID = Semaphore(ftok("./master.c",64),MAX_HEIGHT*MAX_WIDTH);
 
   wait_Sem(SemID,3);
-
   while(1){
     Move();
     wait_Sem(SemID,1);
@@ -95,7 +94,7 @@ int Move(){
   /*lock_Sem(SemID,1,0);*/
   toWait.tv_sec=0;
   toWait.tv_nsec=MIN_HOLD_NSEC;
-  if(MAX_MOVES>0 && MyTarget[myTurn].Distance!=MAX_INT && MAX_MOVES>MyTarget[myTurn].Distance){
+  if(MyTarget[myTurn].Fuel>0 && MyTarget[myTurn].Distance!=MAX_INT && MyTarget[myTurn].Fuel>=MyTarget[myTurn].Distance){
       if(PawnRow<MyTarget[myTurn].DestinationRow && Moved==0 && PawnRow<MAX_HEIGHT)
       if(lock_Sem(ChessboardSemaphoresID,(PawnRow+1)*MAX_WIDTH+PawnCol,IPC_NOWAIT)!=-1){
           if(buff[(PawnRow+1)*MAX_WIDTH+PawnCol].Symbol=='F'){CaughtFlag=1;}
@@ -141,14 +140,18 @@ int Move(){
 
   if(Moved){
     buff[PawnRow*MAX_WIDTH+PawnCol].Symbol='P';
-    MAX_MOVES--;
+    /*MAX_MOVES--;*/
+    MyTarget[myTurn].Fuel--;
     ScoreTable[PlrTurn-1].Moves++;
     if(CaughtFlag){
       MyTarget[myTurn].Distance=MAX_INT;
       ScoreTable[PlrTurn-1].Score+=buff[PawnRow*MAX_WIDTH+PawnCol].Att.Points;
       buff[PawnRow*MAX_WIDTH+PawnCol].Att.pawn.PIDParent=ParentPID;
       buff[PawnRow*MAX_WIDTH+PawnCol].Att.pawn.PIDPawn=PawnPID;
+      lock_Sem(SemID,4,0);
       kill(MasterPID,SIGUSR1);
+      nanosleep(&toWait,NULL);
+      release_Sem(SemID,4);
     }else{
       buff[PawnRow*MAX_WIDTH+PawnCol].Att.pawn.PIDParent=ParentPID;
       buff[PawnRow*MAX_WIDTH+PawnCol].Att.pawn.PIDPawn=PawnPID;}

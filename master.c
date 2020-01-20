@@ -124,6 +124,7 @@ int main(){
 	/* Re-using the old semaphores */
 	init_Sem(SemID, 0, 0); /* Make players take turns */
 	init_Sem(SemID, 1, 0);
+	init_Sem(SemID, 4, 1);
 
   toWait.tv_sec=0;
   toWait.tv_nsec=MIN_HOLD_NSEC;
@@ -138,7 +139,7 @@ int main(){
 	alarm(MAX_TIME);
 
 	while(1){
-		ScanThrough();
+		/*ScanThrough();*/
 		BuildPlayingField();
 		 nanosleep(&toWait,NULL);
 
@@ -184,9 +185,9 @@ void SetupPlayers(int i){
 	}
 }
 
-void ScanThrough(){
+/*void ScanThrough(){
 
-}
+}*/
 
 void BuildPlayingField(){
 	int i, j;
@@ -311,21 +312,21 @@ void handle_signal(int signal){
 	}
 
 	if(signal==SIGUSR1){
-		Signaled=1;
+		init_Sem(SemID,1,1);
+		init_Sem(SemID,2,0);
 		NumFlags--;
 		if(NumFlags==0){
-			init_Sem(SemID,1,1);
-			init_Sem(SemID,2,0);
 			PlaceFlags();
 			alarm(MAX_TIME);
 			ROUND++;
 			for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR2);
 
+
+			}else for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR1);
+
 			while(!compare_Sem(SemID,2,TOT_PLAYERS));
 
 			init_Sem(SemID,1,0);
-
-			}else for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR1);
 
 		}
 

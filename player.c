@@ -3,6 +3,13 @@
 
 #define TERMINATE kill(getppid(),SIGINT)
 
+struct SO_Flag{
+  int Row;
+  int Col;
+  int Points;
+  int PursuerID;
+}*Flags;
+
 void PlacePawn(int i); /* Place pawn on the playing field */
 void CreatePawn(int RandRow, int RandCol, int PlayerTurn, int i); /* Create the pawn process */
 char* tostring(int Num);
@@ -11,6 +18,7 @@ struct Destination FindClosest();
 struct Destination FindClosestFlag(int Index);
 void handle_signal(int signal);
 void CleanTargets();
+int CatchFlags();
 
 int TOT_PLAYERS;
 int TOT_PAWNS;
@@ -19,6 +27,7 @@ int MAX_WIDTH;
 int MAX_HEIGHT;
 int MIN_FLAGS;
 int MAX_FLAGS;
+int MAX_MOVES;
 
 struct Cell *buff; /* The playing field */
 struct Message *MessageBuffer;
@@ -48,9 +57,14 @@ int main(int argc, char *argv[]){
 	MAX_HEIGHT=ConfigParser("./Settings.conf", "MAX_HEIGHT");
 	MAX_FLAGS=ConfigParser("./Settings.conf", "MAX_FLAGS");
 	MIN_FLAGS=ConfigParser("./Settings.conf", "MIN_FLAGS");
+  MAX_MOVES=ConfigParser("./Settings.conf", "MAX_MOVES");
+
+  Flags = malloc(sizeof(struct SO_Flag)*MAX_FLAGS);
 
   TargetID = SharedMemID(ftok("./pawn",myTurn), sizeof(struct Destination)*TOT_PAWNS);
   MyTarget = AttachMem(TargetID);
+
+  for(i=0;i<TOT_PAWNS;i++) MyTarget[i].Fuel=MAX_MOVES;
 
   /*MessageSemaphoreID = Semaphore(ftok("./pawn",myTurn), TOT_PAWNS);*/
   /*for(i=0;i<TOT_PAWNS;i++) init_Sem(MessageSemaphoreID,i,0);*/ /* For Message reading */
@@ -154,60 +168,68 @@ void CleanTargets(){
 }
 
 void InteractwPawn(){
-   char Moved=0;
-   int i,j;
-   /*FindClosest();*/
-   for(i=0;i<TOT_PAWNS;i++){
-     MyTarget[i]=FindClosestFlag(i);
+   int i,j,NFlags,Distance,Index;
+   int Row,Col,FlagRow,FlagCol;
+   struct Destination closest;
+   NFlags=CatchFlags();
+
+   for(i=0;i<NFlags;i++){
+     closest.Distance=MAX_INT;
+     FlagRow=Flags[i].Row;
+     FlagCol=Flags[i].Col;
+     for(j=0;j<TOT_PAWNS;j++){
+       Distance=0;
+       Row=myPawns[j].Row;
+       Col=myPawns[j].Col;
+
+       if(Row>FlagRow) Distance+=Row-FlagRow;
+       else if(Row<FlagRow) Distance+=FlagRow-Row;
+       else if(Row==FlagRow) Distance+=0;
+
+       if(Col>FlagCol) Distance+=Col-FlagCol;
+       else if(Col<FlagCol) Distance+=FlagCol-Col;
+       else if(Col==FlagCol) Distance+=0;
+
+       if(Distance<closest.Distance){
+         if(MyTarget[j].Fuel>=Distance && MyTarget[j].Distance==MAX_INT){ /* Check if the pawn has enough fuel and if it was already assigned a flag */
+           closest.Distance=Distance;
+           closest.DestinationRow=FlagRow;
+           closest.DestinationCol=FlagCol;
+           Index=j;
+          }
+       }
+     }
+     if(closest.Distance!=MAX_INT){
+       MyTarget[Index].Distance=closest.Distance;
+       MyTarget[Index].DestinationRow=closest.DestinationRow;
+       MyTarget[Index].DestinationCol=closest.DestinationCol;
+       Flags[i].PursuerID=Index;
+     }
    }
+
+
+
 }
 
-struct Destination FindClosest(){
-  int i,j,l,k,Index;
-  char *NottoCheck;
-  struct Destination closest;
-  int distance;
-  NottoCheck=malloc(sizeof(char)*TOT_PAWNS);
+int CatchFlags(){
+  int i,j,l;
+  l=0;
   for(i=0;i<MAX_HEIGHT;i++){
     for(j=0;j<MAX_WIDTH;j++){
       if(buff[i*MAX_WIDTH+j].Symbol=='F'){
-          for(k=0;k<TOT_PAWNS;k++) NottoCheck[k]=1;
-          do{
-
-            closest.Distance=MAX_INT;
-
-            for(l=0;l<TOT_PAWNS;l++){
-            distance=0;
-            if(myPawns[l].Row>i) distance+=myPawns[l].Row-i;
-            else if(myPawns[l].Row<i) distance+=i-myPawns[l].Row;
-            else if(myPawns[l].Row==i) distance+=0;
-
-            if(myPawns[l].Col>j) distance+=myPawns[l].Col-j;
-            else if(myPawns[l].Col<j) distance+=j-myPawns[l].Col;
-            else if(myPawns[l].Col==j) distance+=0;
-
-            if(closest.Distance>distance && NottoCheck[l]){
-              closest.Distance=distance;
-              closest.DestinationRow=i;
-              closest.DestinationCol=j;
-              Index=l;
-            }
-            /*printf("Distance: %d, Row: %d, Col: %d, Index: %d\n",MyTarget[Index].Distance,MyTarget[Index].DestinationRow,MyTarget[Index].DestinationCol,Index);
-            */
-          }
-
-          if(MyTarget[Index].Distance>closest.Distance){
-            MyTarget[Index].Distance=closest.Distance;
-            MyTarget[Index].DestinationRow=closest.DestinationRow;
-            MyTarget[Index].DestinationCol=closest.DestinationCol;
-          }else NottoCheck[Index]=0;
-        }while(!NottoCheck[Index]);
-
-      }
-    }
-  }
-  free(NottoCheck);
+        Flags[l].Row=i;
+        Flags[l].Col=j;
+        Flags[l].Points=buff[i*MAX_WIDTH+j].Att.Points;
+        Flags[l].PursuerID=-1;
+        l++;
+      }/* END OF if(buff[i*MAX_WIDTH+j].Symbol=='F') */
+    }/* END OF for(j=0;j<MAX_WIDTH;j++) */
+  }/* END OF for(i=0;i<MAX_HEIGHT;i++) */
+  return l;
 }
+
+
+
 
 struct Destination FindClosestFlag(int Index){
   int Row,Col, Distance;
@@ -323,12 +345,13 @@ void handle_signal(int signal){
   }
 
   if(signal==SIGUSR1){
-    for(i=0;i<TOT_PAWNS;i++)
+    /*for(i=0;i<TOT_PAWNS;i++)
     if(MyTarget[i].Distance!=MAX_INT){
       /*printf("Target Row %d, target Col %d\n",MyTarget[i].DestinationRow,MyTarget[i].DestinationCol);*/
-      if(buff[MyTarget[i].DestinationRow*MAX_WIDTH+MyTarget[i].DestinationCol].Symbol!='F')
+      /*if(buff[MyTarget[i].DestinationRow*MAX_WIDTH+MyTarget[i].DestinationCol].Symbol!='F')
         MyTarget[i]=FindClosestFlag(i);
-        }
+      }*/
+      Newround=1;
   }
   if(signal==SIGUSR2){
     Newround=1;
