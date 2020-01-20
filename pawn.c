@@ -79,7 +79,7 @@ int main(int argc, char* argv[]){
 
   while(1){
     Move();
-    wait_Sem(SemID,3);
+    wait_Sem(SemID,1);
     /*printf("Later Semaphore in pawn is %d\n", semctl(MessageSemaphoreID, myTurn, GETVAL));*/
   }
 
@@ -92,11 +92,12 @@ int Move(){
   int CaughtFlag=0;
   char Moved=0;
   struct timespec toWait;
+  /*lock_Sem(SemID,1,0);*/
   toWait.tv_sec=0;
   toWait.tv_nsec=MIN_HOLD_NSEC;
   if(MAX_MOVES>0 && MyTarget[myTurn].Distance!=MAX_INT && MAX_MOVES>MyTarget[myTurn].Distance){
       if(PawnRow<MyTarget[myTurn].DestinationRow && Moved==0 && PawnRow<MAX_HEIGHT)
-      if(timed_lock_Sem(ChessboardSemaphoresID,(PawnRow+1)*MAX_WIDTH+PawnCol,IPC_NOWAIT,MIN_HOLD_NSEC)!=-1){
+      if(lock_Sem(ChessboardSemaphoresID,(PawnRow+1)*MAX_WIDTH+PawnCol,IPC_NOWAIT)!=-1){
           if(buff[(PawnRow+1)*MAX_WIDTH+PawnCol].Symbol=='F'){CaughtFlag=1;}
               buff[PawnRow*MAX_WIDTH+PawnCol].Symbol=' ';
               buff[PawnRow*MAX_WIDTH+PawnCol].Att.Points=0;
@@ -106,7 +107,7 @@ int Move(){
           }
 
       if(PawnRow>MyTarget[myTurn].DestinationRow && Moved==0 && PawnRow>0)
-      if(timed_lock_Sem(ChessboardSemaphoresID,(PawnRow-1)*MAX_WIDTH+PawnCol,IPC_NOWAIT,MIN_HOLD_NSEC)!=-1){
+      if(lock_Sem(ChessboardSemaphoresID,(PawnRow-1)*MAX_WIDTH+PawnCol,IPC_NOWAIT)!=-1){
             if(buff[(PawnRow-1)*MAX_WIDTH+PawnCol].Symbol=='F'){CaughtFlag=1;}
               buff[PawnRow*MAX_WIDTH+PawnCol].Symbol=' ';
               buff[PawnRow*MAX_WIDTH+PawnCol].Att.Points=0;
@@ -116,7 +117,7 @@ int Move(){
           }
 
       if(PawnCol<MyTarget[myTurn].DestinationCol && Moved==0 && PawnCol<MAX_WIDTH)
-      if(timed_lock_Sem(ChessboardSemaphoresID,PawnRow*MAX_WIDTH+(PawnCol+1),IPC_NOWAIT,MIN_HOLD_NSEC)!=-1){
+      if(lock_Sem(ChessboardSemaphoresID,PawnRow*MAX_WIDTH+(PawnCol+1),IPC_NOWAIT)!=-1){
             if(buff[PawnRow*MAX_WIDTH+(PawnCol+1)].Symbol=='F'){CaughtFlag=1;}
               buff[PawnRow*MAX_WIDTH+PawnCol].Symbol=' ';
               buff[PawnRow*MAX_WIDTH+PawnCol].Att.Points=0;
@@ -126,7 +127,7 @@ int Move(){
           }
 
       if(PawnCol>MyTarget[myTurn].DestinationCol && Moved==0 && PawnCol>0)
-      if(timed_lock_Sem(ChessboardSemaphoresID,PawnRow*MAX_WIDTH+(PawnCol-1),IPC_NOWAIT,MIN_HOLD_NSEC)!=-1){
+      if(lock_Sem(ChessboardSemaphoresID,PawnRow*MAX_WIDTH+(PawnCol-1),IPC_NOWAIT)!=-1){
               if(buff[PawnRow*MAX_WIDTH+(PawnCol-1)].Symbol=='F'){CaughtFlag=1;}
               buff[PawnRow*MAX_WIDTH+PawnCol].Symbol=' ';
               buff[PawnRow*MAX_WIDTH+PawnCol].Att.Points=0;
@@ -136,7 +137,7 @@ int Move(){
               }
 
 
-    } else return FAIL;
+    } else{/*release_Sem(SemID,1);*/return FAIL;}
 
   if(Moved){
     buff[PawnRow*MAX_WIDTH+PawnCol].Symbol='P';
@@ -144,13 +145,16 @@ int Move(){
     ScoreTable[PlrTurn-1].Moves++;
     if(CaughtFlag){
       MyTarget[myTurn].Distance=MAX_INT;
-      kill(MasterPID,SIGUSR1);
       ScoreTable[PlrTurn-1].Score+=buff[PawnRow*MAX_WIDTH+PawnCol].Att.Points;
-    }
-    buff[PawnRow*MAX_WIDTH+PawnCol].Att.pawn.PIDParent=ParentPID;
-    buff[PawnRow*MAX_WIDTH+PawnCol].Att.pawn.PIDPawn=PawnPID;
-  }else return FAIL;
+      buff[PawnRow*MAX_WIDTH+PawnCol].Att.pawn.PIDParent=ParentPID;
+      buff[PawnRow*MAX_WIDTH+PawnCol].Att.pawn.PIDPawn=PawnPID;
+      kill(MasterPID,SIGUSR1);
+    }else{
+      buff[PawnRow*MAX_WIDTH+PawnCol].Att.pawn.PIDParent=ParentPID;
+      buff[PawnRow*MAX_WIDTH+PawnCol].Att.pawn.PIDPawn=PawnPID;}
+  }else {/*release_Sem(SemID,1);*/return FAIL;}
   nanosleep(&toWait,NULL);
+  /*release_Sem(SemID,1);*/
   return SUCCESS;
 }
 

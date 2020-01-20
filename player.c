@@ -39,6 +39,7 @@ int main(int argc, char *argv[]){
   int i,j;
   int shmID;
   struct sigaction sa; /* Structure for later signal catching */
+  sigset_t  my_mask;
   myTurn=atoi(argv[1]);
   TOT_PLAYERS=ConfigParser("./Settings.conf", "TOT_PLAYERS");
 	TOT_PAWNS=ConfigParser("./Settings.conf", "TOT_PAWNS");
@@ -62,10 +63,23 @@ int main(int argc, char *argv[]){
   /* Set Signal handler */
   bzero(&sa, sizeof(sa));
 	sa.sa_handler = handle_signal;
+  sa.sa_flags = SA_NODEFER;
+
+  sigemptyset(&my_mask);        /* do not mask any signal */
+  sa.sa_mask = my_mask;
 
   sigaction(SIGINT, &sa, NULL);
+  sigaction(SIGFPE, &sa, NULL);
+  sigaction(SIGILL, &sa, NULL);
+  sigaction(SIGKILL, &sa, NULL);
   sigaction(SIGSEGV, &sa, NULL);
   sigaction(SIGUSR1, &sa, NULL);
+  sigaction(SIGUSR2, &sa, NULL);
+
+  /*for(i = 0; i<NSIG; i++){
+		if(sigaction(i, &sa, NULL)==-1)
+			Logn("Cannot set a user-defined handler for Signal",i);
+	}*/
 
   /*signal(SIGUSR1,handle_signal);*/
 
@@ -121,8 +135,7 @@ int main(int argc, char *argv[]){
       if(Newround){
         CleanTargets();
         InteractwPawn();
-        release_Sem(ID,4);
-        wait_Sem(ID,3);
+        release_Sem(ID,2);
         Newround=0;
       }
     }
@@ -289,9 +302,9 @@ void CreatePawn(int randRow, int randCol, int PlayerTurn, int i){
 void handle_signal(int signal){
   int i;
 	Logn("Signal", signal);
-  printf("Signal %d from %d\n", signal, getpid());
+  /*printf("Signal %d from %d\n", signal, getpid());*/
 
-  if(signal==SIGSEGV){
+  if(signal==SIGSEGV || signal==SIGILL || signal==SIGFPE || signal==SIGKILL){
     int status;
     printf("Player %d has just died\n", getpid());
     for(i=0;i<TOT_PAWNS;i++){ kill(myPawns[i].PID, SIGINT);}
@@ -314,9 +327,8 @@ void handle_signal(int signal){
     if(MyTarget[i].Distance!=MAX_INT){
       /*printf("Target Row %d, target Col %d\n",MyTarget[i].DestinationRow,MyTarget[i].DestinationCol);*/
       if(buff[MyTarget[i].DestinationRow*MAX_WIDTH+MyTarget[i].DestinationCol].Symbol!='F')
-        MyTarget[i].Distance=MAX_INT;
+        MyTarget[i]=FindClosestFlag(i);
         }
-      release_Sem(ID,4);
   }
   if(signal==SIGUSR2){
     Newround=1;

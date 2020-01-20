@@ -20,6 +20,7 @@ int MAX_HEIGHT;
 int MIN_FLAGS;
 int MAX_FLAGS;
 int MIN_HOLD_NSEC;
+int MAX_TIME;
 
 int ROUND;
 
@@ -36,6 +37,7 @@ int Signaled=0;
 int main(){
 	int i, j;
 	struct sigaction sa; /* Structure for later signal catching */
+	sigset_t  my_mask;
 	struct timespec toWait;
 	ROUND=1;
 	toWait.tv_sec=0;
@@ -49,12 +51,20 @@ int main(){
 	MAX_FLAGS=ConfigParser("./Settings.conf", "MAX_FLAGS");
 	MIN_FLAGS=ConfigParser("./Settings.conf", "MIN_FLAGS");
 	MIN_HOLD_NSEC=ConfigParser("./Settings.conf", "MIN_HOLD_NSEC");
+	MAX_TIME=ConfigParser("./Settings.conf", "MAX_TIME");
 
 	bzero(&sa, sizeof(sa));
 	sa.sa_handler = handle_signal;
+	sa.sa_flags = SA_NODEFER;
+
+	sigemptyset(&my_mask);        /* do not mask any signal */
+	sa.sa_mask = my_mask;
 
 	sigaction(SIGINT, &sa, NULL);
+	sigaction(SIGCHLD, &sa, NULL);
+
 	sigaction(SIGUSR1, &sa, NULL);
+
 	/*signal(SIGUSR1,handle_signal);*/
 	signal(SIGALRM,handle_signal);
 
@@ -113,7 +123,7 @@ int main(){
 	Log("Done placing, the game begins");
 	/* Re-using the old semaphores */
 	init_Sem(SemID, 0, 0); /* Make players take turns */
-	init_Sem(SemID, 1, 0); /* After a player has finished their turn, it'll wait for the rest */
+	init_Sem(SemID, 1, 0);
 
   toWait.tv_sec=0;
   toWait.tv_nsec=MIN_HOLD_NSEC;
@@ -125,27 +135,12 @@ int main(){
 
 	/* So it begins - Thèoden Ednew, King of Rohan */
 
-	alarm(3);
+	alarm(MAX_TIME);
 
 	while(1){
+		ScanThrough();
 		BuildPlayingField();
-		  nanosleep(&toWait,NULL);
-
-			if(Signaled){
-			init_Sem(SemID,4,0);
-			NumFlags--;
-		/*	printf("Flags remaining: %d\n", NumFlags);*/
-			if(NumFlags==0){
-				PlaceFlags();
-				alarm(3);
-				ROUND++;
-				for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR2);
-			}else for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR1);
-
-				while(!compare_Sem(SemID,4,TOT_PLAYERS));
-				lock_Sem(SemID,3,0);
-				Signaled=0;
-			}
+		 nanosleep(&toWait,NULL);
 
 	}
 
@@ -189,13 +184,10 @@ void SetupPlayers(int i){
 	}
 }
 
-/*
-#######
-# # # #
-#######
-# # # #
-#######
-*/
+void ScanThrough(){
+
+}
+
 void BuildPlayingField(){
 	int i, j;
 
@@ -305,7 +297,9 @@ void handle_signal(int signal){
 	int status;
 	int i;
 	Logn("Signal", signal);
-	if(signal==2){
+	/*printf("Caught signal in master %d\n", signal);*/
+	if(signal==2 || signal==SIGCHLD){
+		/*printf("Killing players\n");*/
 		for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], 2);
 		i=0;
 		while(PlayerPIDs[i] = wait(&status) != -1){i++;}
@@ -315,9 +309,24 @@ void handle_signal(int signal){
 		remove_Sem(ChessboardSemaphoresID);
 		exit(EXIT_SUCCESS);
 	}
+
 	if(signal==SIGUSR1){
-		release_Sem(SemID,3);
 		Signaled=1;
+		NumFlags--;
+		if(NumFlags==0){
+			init_Sem(SemID,1,1);
+			init_Sem(SemID,2,0);
+			PlaceFlags();
+			alarm(MAX_TIME);
+			ROUND++;
+			for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR2);
+
+			while(!compare_Sem(SemID,2,TOT_PLAYERS));
+
+			init_Sem(SemID,1,0);
+
+			}else for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR1);
+
 		}
 
 	if(signal==SIGALRM){
