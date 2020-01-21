@@ -2,6 +2,7 @@
 #include "semaphoreSO.h"
 
 #define BORDERS 0 /* 0 for no border chessboard */
+#define DEBUGCHESS 0
 
 int NumFlags;
 
@@ -11,6 +12,7 @@ void Color(char Symbol, int PIDPlayer);
 void PlaceFlags();
 void SetupPlayers(int i);
 void Terminate();
+int ScanforFlags();
 
 int TOT_PLAYERS;
 int TOT_PAWNS;
@@ -20,6 +22,7 @@ int MAX_HEIGHT;
 int MIN_FLAGS;
 int MAX_FLAGS;
 int MIN_HOLD_NSEC;
+int MAX_TIME;
 
 int ROUND;
 
@@ -31,10 +34,12 @@ int MessageQueueID;
 int ChessboardSemaphoresID;
 int SemID;
 int ScoreTableID;
+int Signaled=0;
 
 int main(){
 	int i, j;
 	struct sigaction sa; /* Structure for later signal catching */
+	sigset_t  my_mask;
 	struct timespec toWait;
 	ROUND=1;
 	toWait.tv_sec=0;
@@ -48,13 +53,21 @@ int main(){
 	MAX_FLAGS=ConfigParser("./Settings.conf", "MAX_FLAGS");
 	MIN_FLAGS=ConfigParser("./Settings.conf", "MIN_FLAGS");
 	MIN_HOLD_NSEC=ConfigParser("./Settings.conf", "MIN_HOLD_NSEC");
+	MAX_TIME=ConfigParser("./Settings.conf", "MAX_TIME");
 
 	bzero(&sa, sizeof(sa));
 	sa.sa_handler = handle_signal;
+	sa.sa_flags = SA_NODEFER;
+
+	sigemptyset(&my_mask);        /* do not mask any signal */
+	sa.sa_mask = my_mask;
 
 	sigaction(SIGINT, &sa, NULL);
-	/*sigaction(SIGUSR1, &sa, NULL);*/
-	signal(SIGUSR1,handle_signal);
+	sigaction(SIGCHLD, &sa, NULL);
+
+	sigaction(SIGUSR1, &sa, NULL);
+
+	/*signal(SIGUSR1,handle_signal);*/
 	signal(SIGALRM,handle_signal);
 
 	/*for(i = 0; i<NSIG; i++){
@@ -85,18 +98,20 @@ int main(){
 		}
 	}
 
-	SemID = Semaphore(ftok("./player.c",68), 5);
+	SemID = Semaphore(ftok("./player.c",68), 7);
   init_Sem(SemID, 0, 0); /* Players */
 	init_Sem(SemID, 1, 0);
-	init_Sem(SemID, 2, 0);
+	init_Sem(SemID, 2, 1);
 	init_Sem(SemID, 3, 1); /* Game start */
 	init_Sem(SemID, 4, 1);
+	init_Sem(SemID, 5, 1); /* Mutual access to "FetchaTarget()" in Pawn */
+	init_Sem(SemID, 6, 1); /* Mutual access to scores */
 
 	Logn("SemID is",SemID);
 
 	/*lock_Sem(SemID,0); *//* Lock the semaphore until all players have been generated */
 	PlayerPIDs = malloc(sizeof(int)*TOT_PLAYERS);
-	for(i=0;i<TOT_PLAYERS;i++){SetupPlayers(i); /*printf("PlayerPIDs: %d\n",PlayerPIDs[i]);*/ }/* Create all player processes */
+	for(i=0;i<TOT_PLAYERS;i++){SetupPlayers(i); printf("PlayerPIDs: %d\n",PlayerPIDs[i]); }/* Create all player processes */
 	Wait(1);
 	release_Sem(SemID,0); /* Allows the players to place down their pawns */
 
@@ -112,22 +127,46 @@ int main(){
 	Log("Done placing, the game begins");
 	/* Re-using the old semaphores */
 	init_Sem(SemID, 0, 0); /* Make players take turns */
-	init_Sem(SemID, 1, 0); /* After a player has finished their turn, it'll wait for the rest */
-	init_Sem(SemID, 2, 1); /* Signaling */
+	init_Sem(SemID, 1, 0);
+	init_Sem(SemID, 2, 0);
 
-  toWait.tv_sec=0;
+	toWait.tv_sec=0;
   toWait.tv_nsec=MIN_HOLD_NSEC;
 	PlaceFlags(); /* Place down flags on the board */
 	sleep(1); /* Make sure everyone is infact done */
+	init_Sem(SemID, 4, 0);
+	while(!compare_Sem(SemID,2,TOT_PLAYERS));
 	init_Sem(SemID, 3, 0); /* Releasing the beasts */
-
+	BuildPlayingField();
 	/* So it begins - Thèoden Ednew, King of Rohan */
 
-	alarm(3);
+	alarm(MAX_TIME);
 
 	while(1){
-		BuildPlayingField();
-		  nanosleep(&toWait,NULL);
+		/*init_Sem(SemID,1,1);*/
+		/*ScanThrough();*/
+		NumFlags=ScanforFlags();
+
+		if(NumFlags==0){
+			init_Sem(SemID,1,1);
+			init_Sem(SemID,2,0);
+			PlaceFlags();
+			NumFlags=ScanforFlags();
+			ROUND++;
+			for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR1);
+
+			while(!compare_Sem(SemID,2,TOT_PLAYERS));
+			init_Sem(SemID,1,0);
+			alarm(MAX_TIME);
+		}
+
+		 BuildPlayingField();
+		 /*init_Sem(SemID,1,0);*/
+		 nanosleep(&toWait,NULL);
+
+
+
+
 	}
 
 
@@ -170,13 +209,19 @@ void SetupPlayers(int i){
 	}
 }
 
-/*
-#######
-# # # #
-#######
-# # # #
-#######
-*/
+int ScanforFlags(){
+	int counter;
+	int i,j;
+	counter=0;
+	for(i=0;i<MAX_HEIGHT;i++){
+		for(j=0;j<MAX_WIDTH;j++){
+			if(buff[i*MAX_WIDTH+j].Symbol=='F')
+			counter++;
+		}
+	}
+	return counter;
+}
+
 void BuildPlayingField(){
 	int i, j;
 
@@ -221,6 +266,15 @@ void BuildPlayingField(){
 
 	#endif
 
+	 #if DEBUGCHESS
+		for(i=0;i<MAX_HEIGHT;i++){
+			for(j=0;j<MAX_WIDTH;j++){
+				printf("%d",semctl(ChessboardSemaphoresID,i*MAX_WIDTH+j,GETVAL));
+			 }
+			printf("\n");
+		}
+		printf("\n");
+	#endif
 }
 
 void Color(char Symbol, int PIDPlayer){
@@ -286,8 +340,11 @@ void handle_signal(int signal){
 	int status;
 	int i;
 	Logn("Signal", signal);
-	if(signal==2){
+	/*printf("Caught signal in master %d\n", signal);*/
+	if(signal==2 || signal==SIGCHLD){
+		/*printf("Killing players\n");*/
 		for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], 2);
+		i=0;
 		while(PlayerPIDs[i] = wait(&status) != -1){i++;}
 		shmctl(shmID,IPC_RMID,NULL);
 		shmctl(ScoreTableID,IPC_RMID,NULL);
@@ -295,22 +352,41 @@ void handle_signal(int signal){
 		remove_Sem(ChessboardSemaphoresID);
 		exit(EXIT_SUCCESS);
 	}
+
 	if(signal==SIGUSR1){
-		/*printf("Caught SIGUSR1\n");*/
-		NumFlags--;
-	/*	printf("Flags remaining: %d\n", NumFlags);*/
+		/*init_Sem(SemID,1,1);
+		init_Sem(SemID,2,0);
 		if(NumFlags==0){
 			PlaceFlags();
-			alarm(3);
+			NumFlags=ScanforFlags();
+			alarm(MAX_TIME);
 			ROUND++;
-		for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR2);
-		}else
-		for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR1);
-	}
+			for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR2);
+
+
+			}else for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR1);
+
+			while(!compare_Sem(SemID,2,TOT_PLAYERS));
+
+			init_Sem(SemID,1,0);*/
+
+		}
 
 	if(signal==SIGALRM){
-		if(NumFlags>0)
-		Terminate();
+		if(NumFlags>0){
+		/*Terminate();*/
+		NumFlags=ScanforFlags();
+		BuildPlayingField();
+
+		for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], 2);
+		i=0;
+		while(wait(&status) != -1){i++;}
+		shmctl(shmID,IPC_RMID,NULL);
+		shmctl(ScoreTableID,IPC_RMID,NULL);
+		remove_Sem(SemID);
+		remove_Sem(ChessboardSemaphoresID);
+		exit(EXIT_SUCCESS);
+		}
 	}
 
 }

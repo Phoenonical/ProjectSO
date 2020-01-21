@@ -49,10 +49,6 @@ Though, after the first instructions, the master is informed and starts the time
 
 #define FAIL -1
 #define SUCCESS 0
-#define GOUP 1
-#define GODOWN 2
-#define GORIGHT 3
-#define GOLEFT 4
 
 struct Pawn{
 	int PIDParent;
@@ -90,6 +86,7 @@ struct Destination{
 	int Distance;
 	int DestinationCol;
 	int DestinationRow;
+	int Fuel;
 };
 
 /* Defining a message structre for Player-Pawn communication */
