@@ -87,6 +87,9 @@ struct Destination{
 	int DestinationCol;
 	int DestinationRow;
 	int Fuel;
+	int SourceRow;
+	int SourceCol;
+	int PawnPID;
 };
 
 /* Defining a message structre for Player-Pawn communication */
