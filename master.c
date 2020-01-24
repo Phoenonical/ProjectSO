@@ -20,6 +20,7 @@ void SetupPlayers(int i);
 void Terminate();
 void DistributePoints(int *Points, int N);
 int ScanforFlags();
+int Printtime(int seconds);
 
 int TOT_PLAYERS;
 int TOT_PAWNS;
@@ -30,6 +31,7 @@ int MIN_FLAGS;
 int MAX_FLAGS;
 int MIN_HOLD_NSEC;
 int MAX_TIME;
+int MAX_MOVES;
 
 int ROUND;
 
@@ -41,6 +43,8 @@ int ChessboardSemaphoresID;
 int SemID;
 int ScoreTableID;
 int Signaled=0;
+
+time_t start;
 
 int main(){
 	int i, j;
@@ -60,6 +64,7 @@ int main(){
 	MIN_FLAGS=ConfigParser("./Settings.conf", "MIN_FLAGS");
 	MIN_HOLD_NSEC=ConfigParser("./Settings.conf", "MIN_HOLD_NSEC");
 	MAX_TIME=ConfigParser("./Settings.conf", "MAX_TIME");
+	MAX_MOVES=ConfigParser("./Settings.conf", "MAX_MOVES");
 
 	if(MAX_HEIGHT*MAX_WIDTH<((TOT_PLAYERS*TOT_PAWNS)+MAX_FLAGS)){
 		printf("ERROR: Not enough space for Pawns and flags\n"); exit(EXIT_FAILURE);
@@ -153,6 +158,7 @@ int main(){
 	BuildPlayingField();
 	init_Sem(SemID, 3, 0); /* Releasing the beasts */
 	/* So it begins - Thèoden Ednew, King of Rohan */
+	start = time(NULL); /* The start time of the game */
 
 	alarm(MAX_TIME);
 
@@ -194,7 +200,11 @@ void Terminate(){
 	int status;
 	int winner, winnerScore=0, winnerMoves;
 	char ch;
-	for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGUSR2);
+	int total_time;
+	time_t end;
+
+	end=time(NULL);
+	total_time = end-start;
 
 	for(i=0;i<TOT_PLAYERS;i++){
 		if(winnerScore<ScoreTable[i].Score){
@@ -204,10 +214,10 @@ void Terminate(){
 
 	BuildPlayingField();
 	printf("\nWinner winner chicken dinner ----- "); Color('Q',PlayerPIDs[winner]);
-	printf("Player%d\033[0m ----- Score: %d ----- Moves: %d\n\n",winner+1,winnerScore,winnerMoves);
+	printf("Player%d\033[0m ----- Score: %d ----- Moves: %d ----- Fuel: %d\n\n",winner+1,winnerScore,winnerMoves,(MAX_MOVES*TOT_PAWNS)-winnerMoves);
+	printf("Total time: ");
+	Printtime(total_time);
 
-	printf("Press any key to exit....\n");
-	scanf("%c",&ch);
 
 
 	for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGINT);
@@ -217,7 +227,25 @@ void Terminate(){
 	shmctl(ScoreTableID,IPC_RMID,NULL);
 	remove_Sem(SemID);
 	remove_Sem(ChessboardSemaphoresID);
+
+	printf("Press any key to exit....\n");
+	scanf("%c",&ch);
+
 	exit(EXIT_SUCCESS);
+}
+
+int Printtime(int seconds){
+	int s,m,h; /* s=Seconds, m=Minutes, h=Hours */
+	s=seconds;
+	m=0;
+
+	while(s>=60){s=s-60; m++;}
+	while(m>=60){m=m-60; h++;}
+
+	if(h<10)printf("0%d:", h);else printf("%d:", h);
+	if(m<10)printf("0%d:", m);else printf("%d:", m);
+	if(s<10)printf("0%d\n", s);else printf("%d\n", s);
+
 }
 
 void SetupPlayers(int i){
@@ -256,7 +284,7 @@ void BuildPlayingField(){
 	for(i=0;i<TOT_PLAYERS;i++){
 		Color('Q',PlayerPIDs[i]);
 		printf("Player%d ",i+1); printf("\033[0m");
-		printf("----- Score: %d ----- Used Moves: %d\n", ScoreTable[i].Score,ScoreTable[i].Moves);
+		printf("----- Score: %d ----- Used Moves: %d ----- Fuel: %d\n", ScoreTable[i].Score,ScoreTable[i].Moves,(MAX_MOVES*TOT_PAWNS)-ScoreTable[i].Moves);
 	}
 	printf("Remaining ");
 	Color('E',0);

@@ -80,7 +80,6 @@ int main(int argc, char *argv[]){
   sigaction(SIGKILL, &sa, NULL);
   sigaction(SIGSEGV, &sa, NULL);
   sigaction(SIGUSR1, &sa, NULL);
-  sigaction(SIGUSR2, &sa, NULL);
   sigaction(SIGCHLD, &sa, NULL);
 
 
@@ -282,8 +281,5 @@ void handle_signal(int signal){
 
   if(signal==SIGUSR1){
     Newround=1;
-  }
-  if(signal==SIGUSR2){
-    pause();
   }
 }
