@@ -1,0 +1,173 @@
+\documentclass[11pt]{article}
+
+\usepackage{fancyhdr}
+\usepackage{xcolor}
+\usepackage{listings}	
+
+\definecolor{mGreen}{rgb}{0,0.6,0}
+\definecolor{mGray}{rgb}{0.5,0.5,0.5}
+\definecolor{mPurple}{rgb}{0.58,0,0.82}
+\definecolor{backgroundColour}{rgb}{0.95,0.95,0.92}	
+
+\lstset{language=C,
+    backgroundcolor=\color{backgroundColour},   
+    commentstyle=\color{mGreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{mGray},
+    stringstyle=\color{mPurple},
+    basicstyle=\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2,
+}
+ 
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{Project report}
+\lhead{Operating systems - Sistemi operativi}
+\rfoot{\thepage}
+ 
+\begin{document}
+
+\thispagestyle{empty}
+
+\begin{center}
+	\Large{Università degli Studi di Torino}
+\end{center}
+
+
+
+\begin{center}	
+	\begin{tabular}{c}	
+		\\ \hline
+		\\
+		\huge{\textbf{Project report}}
+		\\
+		\footnotesize{Operating systems - Sistemi operativi}
+		\\
+		\\ \hline
+	\end{tabular}
+	
+	\bigskip
+	
+Nome: Edvinas Nomeika	
+
+Matricola: 895757
+
+\footnotesize{Corso: B, Turno: T3}
+	
+\end{center}
+\pagebreak
+\tableofcontents
+\pagebreak
+
+\section{The processes}
+
+The project can create a number of processes in it's lifetime, but 3 of them are unique. Each of these processes are required to be compiled with "\textbf{common.o}" and "\textbf{semaphoreSO.o}"
+
+\subsection{Master}
+
+The master process is the first process to come alive. It's job is to create shared memory segments, create semaphores, syncronize players/pawns, place flags, scans the board for flags, print the Chessboard and individual scores and lastly, to terminate all player processes (which in turn, terminate their pawns) and deallocate the various IPC segments created. When creating a player process, it is assigned a turn (from 1 to N), this value is required to place pawns in an orderly fashion an as a unique key to create a specific shared memory segment with the player.
+
+\subsection{Player}
+
+The player process is created by the master, it has a simple job of creating pawns (in order and in turns), coordinating them and eventually, terminate them. The strategy the player uses is assigning a flag to a closest pawn and ONLY one pawn per player (the pawns are meant to work together not against eachother). The Player ones does it once per round, assuming that all reachable flags have been assigned to a pawn and then it goes to sleep. The Player creates it's own personal shared memory segment called "\textbf{MyTarget}", it is shared between one player and all of it's pawns. It's defined as:
+	\begin{lstlisting}[language=C]
+struct Destination{
+  int Distance; /* Distance to flag */
+  int DestinationCol; 
+  int DestinationRow;
+  int Fuel; /* Remaining moves */
+  int SourceRow;
+  int SourceCol;
+};
+	\end{lstlisting}
+	
+	Similarly to the master, the player process assigns a turn (from 0 to N) to each Pawn which is used as an "\textbf{Index}" value for the "\textbf{MyTarget}" array.
+
+\subsection{Pawn}
+
+The pawn is created by the player process, it's main objective is to wait for a destination (which is given by the player). A pawn has a limited amount of moves, it should \textbf{NEVER} pursue a flag that's too far and it cannot access a cell that's already occupied by another pawn. The movement of a pawn is simple, it moves vertically until it's on the same row as it's destination, then moves horizontally, avoiding obstacles if possible. When a pawn captures a flag (originally it sent an signal to the Master, but due to many signals being sent at once, some were lost causing syncronization errors) , it updates its parent's score and then checks if it's close to another flag, if yes, it also checks if it's THE closest pawn, if that's also true, the original pursuer pawn is told to stop moving and the new pawn begins pursuing the flag. Otherwise, it sleeps until a new round starts.
+
+\section{IPCs used}
+
+In this project, only the shared memory and semaphores were used, message passing was not.
+
+\subsection{Shared memory}
+
+\subsubsection{Created by master}
+
+The master process begin its life by creating two main shared memory segments, known as "\textbf{Chessboard}" and "\textbf{Scoretable}" which are used among all processes to share locations of flags/pawns and to know the score of each player.
+
+\subsubsection{Created by a player}
+Each player creates its own shared memory segment, which is used to coordinate with the pawns, its structure was shown before.
+
+\subsection{Semaphores} The Master also has the job of creating two main semaphore segments "\textbf{ChessboardSemaphoresID}" and "\textbf{SemID}", the latter is required to syncronize the Players and the Pawns to avoid overwriting necessary data and to keep them orderly. The "\textbf{ChessboardSemaphoresID}" have dedicated semaphores for each Cell in our "\textbf{Chessboard}", which is required to let other pawns know if the Cell they're trying to access is occupied or not.
+
+
+
+\section{The chessboard}
+
+The chessboard itself is no simple "Char" matrix, it is infact a structure defined as:
+
+	\begin{lstlisting}[language=C]
+struct Pawn{
+	int PIDParent;
+	int PIDPawn;
+};
+
+union Attribute{
+	int Points; /* For flag, is 0 or NULL when empty */
+	struct Pawn pawn; /* For Pawn */
+};
+
+struct Cell{
+	char Symbol; /* Can be either a F for Flag, or P for Pawn */
+	union Attribute Att;
+};
+    \end{lstlisting}
+    
+    This structure has the advantage of carrying multiple data within itself without requiring to create abundant segments for information exchanging. It is closely used with the "\textbf{ChessboardSemaphoreID}", which as discussed previously, is required to let each pawn know which cell is occupied.
+    
+    \subsection{Printing the chessboard}
+    
+	The chessboard is printed by the master processes and it's done every 0.1 seconds. The empty spaces in the chessboard are filled with dots ".", while the flags are recognized by the symbol "\textbf{F}" and are always colored red. The Pawns are more tricky, The first 10 players use the first capital letter of the alphabet as their symbol, while the next 10 use the 2nd letter and so on. Despite the pawns using the same letter on the chessboard, they are colored differently, otherwise it would nearly be impossible to recognize which pawn belongs to which player.
+	
+	Above the chessboard, the master also prints the "\textbf{Leaderboard}", which indicate the Player color, it's score and the amount of moves used in it's life time.
+	
+	\section{Signals}
+	
+	Originally the project was heavily dependent on the master receiving a signal every time a pawn captures a flag, this was proven to be too problematic. Instead, the signals are mostly used to detect either an interrupt sent by the user, which in turn terminates all other processes and deallocate all of the IPCs segments or an error in general (a segmentation fault).
+	
+	\subsection{Pause}
+	When a pawn doesn't have a destination, it is put to sleep with the function "\textbf{pause()}". This is useful to not waste the processor usage, it greatly increases the execution speed. When the game ends, the master pauses the Players. A process can be awaken by sending any signal to it.
+	
+	\subsection{Alarm}
+	The game ends once the players were unsuccessful at capturing a flag in a specific amount of time in a round. In order to achieve it, the project uses the function "\textbf{alarm()}", which sends a signal to the master after a specific amount of time, this alarm resets every round. The time can be modified in the "\textbf{Settings.conf}" file.
+	
+	\section{Common.o and semaphoreSO.o}
+	
+	These files are very self explanatory, they're linked with all of the processors.
+	
+	\subsection{Common.o}
+	The \textbf{common.h} and \textbf{common.c} contain included libraries, macros, defines and functions which are used by everyone or at least more than 2 processors. I also include some "Logging" code for debugging.
+	
+	\subsection{SemaphoreSO.o}
+	This object contains everything related to the semaphores, including creation, initialization, locking/unlocking and wait functions.
+	
+	\section{The settings file}
+	
+	The settings file is called "\textbf{Settings.Conf}" and it's where you go when you want to modify something regarding to the game. Though, the file is infact "fragile", deleting a line might be catastrophical, being cautious is highly suggested. The function to read the values is located in "\textbf{common.c}", it is capable of doing very basic parsing and error signaling, for example, if I don't indicate a number for a specific variable, it'll kill the program and end in a termination.
+	
+	
+	
+	
+ 
+\end{document}
