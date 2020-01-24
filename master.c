@@ -33,11 +33,10 @@ int MAX_TIME;
 
 int ROUND;
 
-struct Cell *buff;
+struct Cell *Chessboard;
 struct Scoreboard *ScoreTable;
 int *PlayerPIDs;
 int shmID;
-int MessageQueueID;
 int ChessboardSemaphoresID;
 int SemID;
 int ScoreTableID;
@@ -61,6 +60,10 @@ int main(){
 	MIN_FLAGS=ConfigParser("./Settings.conf", "MIN_FLAGS");
 	MIN_HOLD_NSEC=ConfigParser("./Settings.conf", "MIN_HOLD_NSEC");
 	MAX_TIME=ConfigParser("./Settings.conf", "MAX_TIME");
+
+	if(MAX_HEIGHT*MAX_WIDTH<((TOT_PLAYERS*TOT_PAWNS)+MAX_FLAGS)){
+		printf("ERROR: Not enough space for Pawns and flags\n"); exit(EXIT_FAILURE);
+	}
 
 	bzero(&sa, sizeof(sa));
 	sa.sa_handler = handle_signal;
@@ -90,7 +93,7 @@ int main(){
 
 	shmID = SharedMemID(ftok("./",70),sizeof(struct Cell)*MAX_HEIGHT*MAX_WIDTH);
 
-	buff = AttachMem(shmID);
+	Chessboard = AttachMem(shmID);
 
 	ChessboardSemaphoresID = Semaphore(ftok("./master.c",64),MAX_HEIGHT*MAX_WIDTH);
 
@@ -103,8 +106,8 @@ int main(){
 
 	for(i=0;i<MAX_HEIGHT;i++){
 		for(j=0;j<MAX_WIDTH;j++){
-			buff[i*MAX_WIDTH+j].Symbol=' '; /* Initialize the playing field */
-			buff[i*MAX_WIDTH+j].Att.Points=0;
+			Chessboard[i*MAX_WIDTH+j].Symbol=' '; /* Initialize the playing field */
+			Chessboard[i*MAX_WIDTH+j].Att.Points=0;
 			init_Sem(ChessboardSemaphoresID,i*MAX_WIDTH+j,1);
 		}
 	}
@@ -133,7 +136,7 @@ int main(){
 	init_Sem(SemID,0,0);
 	Log("Semaphore has been reset");
 	/*sleep(1);*/
-	release_Sem(SemID,0); /* Players may place pawns again */
+	init_Sem(SemID,0,1); /* Players may place pawns again */
 	}
 	Log("Done placing, the game begins");
 	/* Re-using the old semaphores */
@@ -179,8 +182,6 @@ int main(){
 		 nanosleep(&toWait,NULL);
 
 
-
-
 	}
 
 
@@ -211,7 +212,7 @@ void Terminate(){
 
 	for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], SIGINT);
 	while(wait(&status) != -1);
-	shmdt(buff); /* Deattach shared memory segment */
+	shmdt(Chessboard); /* Deattach shared memory segment */
 	shmctl(shmID,IPC_RMID,NULL); /* Deallocate a shared memory */
 	shmctl(ScoreTableID,IPC_RMID,NULL);
 	remove_Sem(SemID);
@@ -241,7 +242,7 @@ int ScanforFlags(){
 	counter=0;
 	for(i=0;i<MAX_HEIGHT;i++){
 		for(j=0;j<MAX_WIDTH;j++){
-			if(buff[i*MAX_WIDTH+j].Symbol=='F')
+			if(Chessboard[i*MAX_WIDTH+j].Symbol=='F')
 			counter++;
 		}
 	}
@@ -265,7 +266,7 @@ void BuildPlayingField(){
 
 	for(i=0;i<MAX_HEIGHT;i++){
 		for(j=0;j<MAX_WIDTH;j++){
-			Color(buff[i*MAX_WIDTH+j].Symbol,buff[i*MAX_WIDTH+j].Att.pawn.PIDParent);
+			Color(Chessboard[i*MAX_WIDTH+j].Symbol,Chessboard[i*MAX_WIDTH+j].Att.pawn.PIDParent);
 		 }
 		printf("\n");
 	}
@@ -286,29 +287,27 @@ void BuildPlayingField(){
 void Color(char Symbol, int PIDPlayer){
 	int i, ColorNumber, LetterAdd=0;
 	char Letter = 'A';
-	if(Symbol==' '){printf(".");}
-	else if(Symbol=='F'){ printf("\033[1;31mF\033[0m");} /* Flag is bold Red */
+	if(Symbol=='F'){ printf("\033[1;31mF\033[0m");} /* Flag is bold Red */
 	else if(Symbol=='E'){ printf("\033[1;31m");} /* Flag text is bold Red */
 	else if(Symbol=='P'){ /* Pawn color and symbol */
 		for(i=0;i<TOT_PLAYERS;i++){
-			if(PIDPlayer == PlayerPIDs[i]){ ColorNumber=i%10; Letter=Letter+LetterAdd;}
-			if((i+1)%10==0)LetterAdd++;
-			if(LetterAdd==5)LetterAdd++; /* Skip the letter F */
+			if(PIDPlayer == PlayerPIDs[i]){ColorNumber=i%10;}
+			if((i+1)%10==0)Letter++;
+			if(Letter=='F')Letter++; /* Skip the letter F */
 		}
 		switch(ColorNumber){
-			case 0: printf("\033[0;32m%c",Letter);break;
-			case 1: printf("\033[0;33m%c",Letter);break;
-			case 2: printf("\033[0;34m%c",Letter);break;
-			case 3: printf("\033[0;35m%c",Letter);break;
-			case 4: printf("\033[0;36m%c",Letter);break;
-			case 5: printf("\033[1;32m%c",Letter);break;
-			case 6: printf("\033[1;33m%c",Letter);break;
-			case 7: printf("\033[1;34m%c",Letter);break;
-			case 8: printf("\033[1;35m%c",Letter);break;
-			case 9: printf("\033[1;36m%c",Letter);break;
+			case 0: printf("\033[0;32m%c\033[0m",Letter);break;
+			case 1: printf("\033[0;33m%c\033[0m",Letter);break;
+			case 2: printf("\033[0;34m%c\033[0m",Letter);break;
+			case 3: printf("\033[0;35m%c\033[0m",Letter);break;
+			case 4: printf("\033[0;36m%c\033[0m",Letter);break;
+			case 5: printf("\033[1;32m%c\033[0m",Letter);break;
+			case 6: printf("\033[1;33m%c\033[0m",Letter);break;
+			case 7: printf("\033[1;34m%c\033[0m",Letter);break;
+			case 8: printf("\033[1;35m%c\033[0m",Letter);break;
+			case 9: printf("\033[1;36m%c\033[0m",Letter);break;
 			default: /* No color */ break;
 		}
-		printf("\033[0m");
 		/*printf("%c",Symbol); printf("\033[0m");*/
 	}else if(Symbol=='Q'){ /* Player Text color */
 		for(i=0;i<TOT_PLAYERS;i++){
@@ -328,7 +327,7 @@ void Color(char Symbol, int PIDPlayer){
 			default: /* No color */ break;
 		}
 		/*printf("%c",Symbol); printf("\033[0m");*/
-	}
+	}else{printf(".");}
 }
 
 
@@ -360,9 +359,9 @@ void PlaceFlags(){ /* Randomly place flags in our field */
 
 	for(i=0;i<MAX_HEIGHT;i++)
 		for(j=0;j<MAX_WIDTH;j++)
-			if(buff[i*MAX_WIDTH+j].Symbol=='F'){
-				buff[i*MAX_WIDTH+j].Symbol=' ';
-				buff[i*MAX_WIDTH+j].Att.Points=0;
+			if(Chessboard[i*MAX_WIDTH+j].Symbol=='F'){
+				Chessboard[i*MAX_WIDTH+j].Symbol=' ';
+				Chessboard[i*MAX_WIDTH+j].Att.Points=0;
 			 } /* Remove all old flags */
 
 	for(i=0;i<NumFlags;i++){
@@ -370,12 +369,12 @@ void PlaceFlags(){ /* Randomly place flags in our field */
 		do{
 			randRow = (rand() % MAX_HEIGHT); /* Random number from 0 to MAX_HEIGHT - 1 */
 			randCol = (rand() % MAX_WIDTH); /* Random number from 0 to MAX_WIDTH - 1 */
-			Logn("Found",buff[randRow*MAX_WIDTH+randCol].Symbol);
-		}while(buff[randRow*MAX_WIDTH+randCol].Symbol!=' ');
-		/*}while(buff[randRow*MAX_WIDTH+randCol].Symbol!=' ');*/ /* if the cell is ALREADY occupied, we re-randomize our row and column numbers */
+			Logn("Found",Chessboard[randRow*MAX_WIDTH+randCol].Symbol);
+		}while(Chessboard[randRow*MAX_WIDTH+randCol].Symbol!=' ');
+		/*}while(Chessboard[randRow*MAX_WIDTH+randCol].Symbol!=' ');*/ /* if the cell is ALREADY occupied, we re-randomize our row and column numbers */
 
-		buff[randRow*MAX_WIDTH+randCol].Symbol = 'F';
-		buff[randRow*MAX_WIDTH+randCol].Att.Points = Points[i];
+		Chessboard[randRow*MAX_WIDTH+randCol].Symbol = 'F';
+		Chessboard[randRow*MAX_WIDTH+randCol].Att.Points = Points[i];
 
 		Logn("Placed flag",i);
 
@@ -390,7 +389,6 @@ void handle_signal(int signal){
 	Logn("Signal", signal);
 	/*printf("Caught signal in master %d\n", signal);*/
 	if(signal==SIGINT || signal==SIGCHLD || signal==SIGSEGV || signal==SIGILL || signal==SIGFPE || signal==SIGKILL){
-		if(signal==SIGINT) printf("\nInterrupting game.....\n");
 		for(i=0;i<TOT_PLAYERS;i++) kill(PlayerPIDs[i], 2);
 		i=0;
 		while(PlayerPIDs[i] = wait(&status) != -1){i++;}

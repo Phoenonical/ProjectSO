@@ -26,13 +26,12 @@ int init_Sem(int semID, int semNum, int val); /* Initialize semaphore(s) to a sp
 /*
  * semID = The ID of the semaphore IPC object
  * semNum = The position of the semaphore in the array
+ * flag = The wanted flags to include
  */
 
 int compare_Sem(int semID, int semNum, int valtocompare); /* Compare a value to semaphore value */
 
 int lock_Sem(int semID, int semNum, int flag); /* Lock the semaphore */
-
-int timed_lock_Sem(int semID, int semNum, int flag, unsigned long time); /* Lock the semaphore */
 
 int release_Sem(int semID, int semNum); /* Release the semaphore */
 

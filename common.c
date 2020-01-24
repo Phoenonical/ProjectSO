@@ -75,29 +75,6 @@ int ConfigParser(char* Path, char* toGet){ /* I might've over-complicated it */
   return -1; /* If toGet was never found, return a -1 */
 }
 
-char* tostring(int Num){
-  char *str;
-  str = malloc(sizeof(char)*12);
-  int i, rem, len=0, n;
-  n = Num;
-
-  while(n!=0){ /* Find number of digits in the number */
-    len++;
-    n/=10;
-  }
-
-  for(i=0;i<len;i++){ /* The Stringinification process */
-    rem = Num % 10;
-    Num = Num / 10;
-    str[len - (i+1)] = rem + '0';
-  }
-
-  str[len] = '\0'; /* The \0 indicates the end of a string */
-
-  return str;
-
-}
-
 int SharedMemID(int Key, int size){
   int i;
   int MAX_WIDTH=ConfigParser("./Settings.conf", "MAX_WIDTH");

@@ -13,18 +13,16 @@ int MAX_MOVES;
 int TOT_PLAYERS;
 int MIN_HOLD_NSEC;
 int TOT_PAWNS;
-struct Cell *buff;
-struct Message *MessageBuffer;
+
+struct Cell *Chessboard;
 struct Scoreboard *ScoreTable;
 struct Destination *MyTarget;
-int waiting=1;
 int PawnCol;
 int PawnRow;
 int ParentPID;
 int SemID;
 int MasterPID;
 int PawnPID;
-int MessageSemaphoreID;
 int myTurn;
 int PlrTurn;
 int ChessboardSemaphoresID;
@@ -39,7 +37,6 @@ int FetchaTarget();
 
 int main(int argc, char* argv[]){
   int shmID;
-  int TRow,RCol;
 
   bzero(&sa, sizeof(sa));
   sa.sa_handler = handle_signal;
@@ -54,12 +51,10 @@ int main(int argc, char* argv[]){
   MIN_HOLD_NSEC=ConfigParser("./Settings.conf", "MIN_HOLD_NSEC");
   TOT_PAWNS=ConfigParser("./Settings.conf", "TOT_PAWNS");
 
-  if(argc<5){printf("ERROR: Not enough arguments for PAWN\n"); exit(EXIT_FAILURE);}
-  PawnCol = atoi(argv[0]);
-  PawnRow = atoi(argv[1]);
-  MasterPID = atoi(argv[2]);
-  myTurn = atoi(argv[3]);
-  PlrTurn = atoi(argv[4]);
+  if(argc<3){printf("ERROR: Not enough arguments for PAWN\n"); exit(EXIT_FAILURE);}
+  MasterPID = atoi(argv[0]);
+  myTurn = atoi(argv[1]);
+  PlrTurn = atoi(argv[2]);
   PawnPID = getpid();
   ParentPID = getppid();
 
@@ -71,15 +66,16 @@ int main(int argc, char* argv[]){
   ScoreTable = AttachMem(ScoreTableID);
   SemID = Semaphore(ftok("./player.c",68), 5);
   shmID = SharedMemID(ftok("./",70),sizeof(struct Cell)*MAX_HEIGHT*MAX_WIDTH);
-  buff = AttachMem(shmID);
-  buff[PawnRow*MAX_WIDTH+PawnCol].Att.pawn.PIDParent=ParentPID;
-  buff[PawnRow*MAX_WIDTH+PawnCol].Att.pawn.PIDPawn=PawnPID;
+  Chessboard = AttachMem(shmID);
 
   TargetID = SharedMemID(ftok("./pawn",PlrTurn), sizeof(struct Destination)*TOT_PAWNS);
   MyTarget = AttachMem(TargetID);
 
-  MyTarget[myTurn].SourceRow=PawnRow;
-  MyTarget[myTurn].SourceCol=PawnCol;
+  PawnCol = MyTarget[myTurn].SourceCol;
+  PawnRow = MyTarget[myTurn].SourceRow;
+
+  Chessboard[PawnRow*MAX_WIDTH+PawnCol].Att.pawn.PIDParent=ParentPID;
+  Chessboard[PawnRow*MAX_WIDTH+PawnCol].Att.pawn.PIDPawn=PawnPID;
 
   pause();
 
@@ -96,7 +92,7 @@ int main(int argc, char* argv[]){
 
 }
 
-int Check(){
+int Check(){ /* Check if it can still reach it's destination */
   int Distance=0;
 
   if(PawnRow>MyTarget[myTurn].DestinationRow) Distance+=PawnRow-MyTarget[myTurn].DestinationRow;
@@ -116,52 +112,50 @@ int Where(int Direction){ /* Where to move? */
   CaughtFlag=0;
     switch (Direction) {
       case GOUP: if(lock_Sem(ChessboardSemaphoresID,(PawnRow+1)*MAX_WIDTH+PawnCol,IPC_NOWAIT)!=-1){
-        if(buff[(PawnRow+1)*MAX_WIDTH+PawnCol].Symbol=='F') CaughtFlag=1;
-            buff[PawnRow*MAX_WIDTH+PawnCol].Symbol=' ';
-            buff[PawnRow*MAX_WIDTH+PawnCol].Att.Points=0;
+        if(Chessboard[(PawnRow+1)*MAX_WIDTH+PawnCol].Symbol=='F') CaughtFlag=1;
+            Chessboard[PawnRow*MAX_WIDTH+PawnCol].Symbol=' ';
+            Chessboard[PawnRow*MAX_WIDTH+PawnCol].Att.Points=0;
             release_Sem(ChessboardSemaphoresID,PawnRow*MAX_WIDTH+PawnCol); /* Release the occupied cell for other pawn processes */
             PawnRow++;
       }else return FAIL; break;
       case GODOWN: if(lock_Sem(ChessboardSemaphoresID,(PawnRow-1)*MAX_WIDTH+PawnCol,IPC_NOWAIT)!=-1){
-          if(buff[(PawnRow-1)*MAX_WIDTH+PawnCol].Symbol=='F') CaughtFlag=1;
-              buff[PawnRow*MAX_WIDTH+PawnCol].Symbol=' ';
-              buff[PawnRow*MAX_WIDTH+PawnCol].Att.Points=0;
+          if(Chessboard[(PawnRow-1)*MAX_WIDTH+PawnCol].Symbol=='F') CaughtFlag=1;
+              Chessboard[PawnRow*MAX_WIDTH+PawnCol].Symbol=' ';
+              Chessboard[PawnRow*MAX_WIDTH+PawnCol].Att.Points=0;
               release_Sem(ChessboardSemaphoresID,PawnRow*MAX_WIDTH+PawnCol); /* Release the occupied cell for other pawn processes */
               PawnRow--;
       }else return FAIL; break;
       case GORIGHT: if(lock_Sem(ChessboardSemaphoresID,PawnRow*MAX_WIDTH+(PawnCol+1),IPC_NOWAIT)!=-1){
-          if(buff[PawnRow*MAX_WIDTH+(PawnCol+1)].Symbol=='F') CaughtFlag=1;
-              buff[PawnRow*MAX_WIDTH+PawnCol].Symbol=' ';
-              buff[PawnRow*MAX_WIDTH+PawnCol].Att.Points=0;
+          if(Chessboard[PawnRow*MAX_WIDTH+(PawnCol+1)].Symbol=='F') CaughtFlag=1;
+              Chessboard[PawnRow*MAX_WIDTH+PawnCol].Symbol=' ';
+              Chessboard[PawnRow*MAX_WIDTH+PawnCol].Att.Points=0;
               release_Sem(ChessboardSemaphoresID,PawnRow*MAX_WIDTH+PawnCol); /* Release the occupied cell for other pawn processes */
               PawnCol++;
       }else return FAIL; break;
       case GOLEFT: if(lock_Sem(ChessboardSemaphoresID,PawnRow*MAX_WIDTH+(PawnCol-1),IPC_NOWAIT)!=-1){
-          if(buff[PawnRow*MAX_WIDTH+(PawnCol-1)].Symbol=='F') CaughtFlag=1;
-              buff[PawnRow*MAX_WIDTH+PawnCol].Symbol=' ';
-              buff[PawnRow*MAX_WIDTH+PawnCol].Att.Points=0;
+          if(Chessboard[PawnRow*MAX_WIDTH+(PawnCol-1)].Symbol=='F') CaughtFlag=1;
+              Chessboard[PawnRow*MAX_WIDTH+PawnCol].Symbol=' ';
+              Chessboard[PawnRow*MAX_WIDTH+PawnCol].Att.Points=0;
               release_Sem(ChessboardSemaphoresID,PawnRow*MAX_WIDTH+PawnCol); /* Release the occupied cell for other pawnprocesses */
               PawnCol--;
       }else return FAIL; break;
       default: return FAIL;break;
     }
-
+      /* The pawn has moved, update it's position, moves and if necessary, the score */
       MyTarget[myTurn].SourceRow=PawnRow;
       MyTarget[myTurn].SourceCol=PawnCol;
-      buff[PawnRow*MAX_WIDTH+PawnCol].Symbol='P';
-      lock_Sem(SemID,6,0);
+      Chessboard[PawnRow*MAX_WIDTH+PawnCol].Symbol='P';
+      lock_Sem(SemID,6,0); /* One pawn may modify it at a time */
       MyTarget[myTurn].Fuel--;
       ScoreTable[PlrTurn-1].Moves++;
       release_Sem(SemID,6);
       if(CaughtFlag){
         MyTarget[myTurn].Distance=MAX_INT;
-        /*lock_Sem(SemID,6,0);*/
-        ScoreTable[PlrTurn-1].Score+=buff[PawnRow*MAX_WIDTH+PawnCol].Att.Points;
+        ScoreTable[PlrTurn-1].Score+=Chessboard[PawnRow*MAX_WIDTH+PawnCol].Att.Points;
         FetchaTarget();
-        /*release_Sem(6,0);*/
       }
-      buff[PawnRow*MAX_WIDTH+PawnCol].Att.pawn.PIDParent=ParentPID;
-      buff[PawnRow*MAX_WIDTH+PawnCol].Att.pawn.PIDPawn=PawnPID;
+      Chessboard[PawnRow*MAX_WIDTH+PawnCol].Att.pawn.PIDParent=ParentPID;
+      Chessboard[PawnRow*MAX_WIDTH+PawnCol].Att.pawn.PIDPawn=PawnPID;
 
       return SUCCESS;
 
@@ -173,11 +167,9 @@ int Move(){
   int CaughtFlag=0;
   char Moved=0;
   struct timespec toWait;
-  /*lock_Sem(SemID,1,0);*/
   toWait.tv_sec=0;
   toWait.tv_nsec=MIN_HOLD_NSEC;
-   /*&& MyTarget[myTurn].Fuel>=MyTarget[myTurn].Distance*/
-  if(MyTarget[myTurn].Fuel>0 && MyTarget[myTurn].Distance!=MAX_INT && buff[MyTarget[myTurn].DestinationRow*MAX_WIDTH+MyTarget[myTurn].DestinationCol].Symbol=='F'){
+  if(MyTarget[myTurn].Fuel>0 && MyTarget[myTurn].Distance!=MAX_INT && Chessboard[MyTarget[myTurn].DestinationRow*MAX_WIDTH+MyTarget[myTurn].DestinationCol].Symbol=='F'){
 
 
     if(VoH){
@@ -211,7 +203,7 @@ int FetchaTarget(){ /* The Pawn can decide to go after a closest flag IF and onl
     closest.Distance=MAX_INT;
     for(i=0;i<MAX_HEIGHT;i++){
       for(j=0;j<MAX_WIDTH;j++){
-        if(buff[i*MAX_WIDTH+j].Symbol=='F'){
+        if(Chessboard[i*MAX_WIDTH+j].Symbol=='F'){
           Distance=0;
           Row=PawnRow;
           Col=PawnCol;
@@ -234,7 +226,7 @@ int FetchaTarget(){ /* The Pawn can decide to go after a closest flag IF and onl
         }
       }
     }
-    if(closest.Distance==MAX_INT){release_Sem(SemID,5); return FAIL;}
+    if(closest.Distance==MAX_INT){release_Sem(SemID,5); return FAIL;} /* Check if a flag found a pawn */
     for(i=0;i<TOT_PAWNS;i++){
         if(closest.DestinationCol==MyTarget[i].DestinationCol && MyTarget[i].DestinationRow==closest.DestinationRow)
           if(closest.Distance<MyTarget[i].Distance)MyTarget[i].Distance=MAX_INT; else{release_Sem(SemID,5); return FAIL;}

@@ -14,21 +14,6 @@
 #include<sys/types.h>
 #include<errno.h>
 
-/* Once ready, signal the players with a sempaphore */
-
-/* Once the players have given instructions to their pawn, everyone makes a move, then repeat
-Though, after the first instructions, the master is informed and starts the timer */
-
-/* Once a flag is captured, all pawns, players and the master are informed */
-
-/* The players put the pawns down, not the master */
-
-/* The players place their pawns one at a time, The flags must not be placed until the players are done placing their pawns */
-
-/* Pawns can only move in 4 directions, not diagonally and can't go outside of the playing field */
-
-/* Each pawn can do a maximum of moves in it's life span */
-
 /* Uncomment for DEBUG mode OR compile with -DDEBUG */
 /*#define DEBUG*/
 
@@ -66,16 +51,6 @@ struct Cell{
 	union Attribute Att;
 };
 
-/* Defining a message type */
-/*struct Distance{
-	int Distance;
-	int DestinationCol;
-	int DestinationRow;
-	int SourceCol;
-	int SourceRow;
-	int PawnTurn;
-};
-*/
 struct PawnInfo{
 	int Row;
 	int Col;
@@ -92,36 +67,10 @@ struct Destination{
 	int PawnPID;
 };
 
-/* Defining a message structre for Player-Pawn communication */
-/*union MessageBody{
-	int command;
-	struct Distance Loc;
-};*/
-
 struct Scoreboard{
 	int Moves;
 	int Score;
 };
-
-/* command = ...
- * = 0 (Closest flag)
- * = 1 (Go up)
- * = 2 (Go down)
- * = 3 (Go right)
- * = 4 (Go left)
-*/
-
-/*struct Message{
-	char mtype;
-	union MessageBody message;
-};*/
-
-/* mtype = ...
- * = -1 (Error)
- * = 0 (Success)
- * = 1 (Command)
- * = 2 (PawnLocation)
-*/
 
 
 /* Reads a .conf file and checks if YOU (That's right, YOU.) didn't mess up the .conf file
@@ -130,12 +79,10 @@ struct Scoreboard{
  */
 int ConfigParser(char* Path, char* toGet);
 
-char* tostring(int Num);
-
 int SharedMemID(int Key, int size); /* Get the ID of a Shared Memory segment or create a new one */
 
 void* AttachMem(int shmID); /* Return a pointer to a shared memory segment */
 
-int MinMax(int Min, int Max);
+int MinMax(int Min, int Max); /* Return a number between Min and Max */
 
 #endif /* _COMMON_H_ */
