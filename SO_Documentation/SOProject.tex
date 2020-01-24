@@ -115,7 +115,11 @@ Each player creates its own shared memory segment, which is used to coordinate w
 
 \section{The chessboard}
 
-The chessboard itself is no simple "Char" matrix, it is infact a structure defined as:
+The chessboard is not defined just by the semaphores, which are required to ONLY know if a specific cell is occupied or not, what we also need to know is what's in the cell and it's attributes.
+
+\subsection{Chessboard structure}
+
+Therefore, it's no simple "Char" matrix, it is infact a structure defined as:
 
 	\begin{lstlisting}[language=C]
 struct Pawn{
@@ -147,7 +151,7 @@ struct Cell{
 	Originally the project was heavily dependent on the master receiving a signal every time a pawn captures a flag, this was proven to be too problematic. Instead, the signals are mostly used to detect either an interrupt sent by the user, which in turn terminates all other processes and deallocate all of the IPCs segments or an error in general (a segmentation fault).
 	
 	\subsection{Pause}
-	When a pawn doesn't have a destination, it is put to sleep with the function "\textbf{pause()}". This is useful to not waste the processor usage, it greatly increases the execution speed. When the game ends, the master pauses the Players. A process can be awaken by sending any signal to it.
+	When a pawn doesn't have a destination, it is put to sleep with the function "\textbf{pause()}". This is useful to not waste the processor usage, it greatly increases the execution speed. A process can be awaken by sending any signal to it.
 	
 	\subsection{Alarm}
 	The game ends once the players were unsuccessful at capturing a flag in a specific amount of time in a round. In order to achieve it, the project uses the function "\textbf{alarm()}", which sends a signal to the master after a specific amount of time, this alarm resets every round. The time can be modified in the "\textbf{Settings.conf}" file.

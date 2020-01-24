@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.20 (TeX Live 2019) (preloaded format=pdflatex 2020.1.23)  24 JAN 2020 06:54
+This is pdfTeX, Version 3.14159265-2.6-1.40.20 (TeX Live 2019) (preloaded format=pdflatex 2020.1.23)  24 JAN 2020 09:56
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -154,11 +154,11 @@ LaTeX Font Info:    Font shape `OMS/cmr/m/n' in size <9> not available
 Here is how much of TeX's memory you used:
  3073 strings out of 492616
  39059 string characters out of 6129481
- 327309 words of memory out of 5000000
+ 326309 words of memory out of 5000000
  7017 multiletter control sequences out of 15000+600000
  9057 words of font info for 32 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 26i,11n,49p,929b,1387s stack positions out of 5000i,500n,10000p,200000b,80000s
+ 26i,12n,49p,929b,1387s stack positions out of 5000i,500n,10000p,200000b,80000s
 </usr/local/texlive/2019/texmf-dist/fonts/type1/
 public/amsfonts/cm/cmbx10.pfb></usr/local/texlive/2019/texmf-dist/fonts/type1/p
 ublic/amsfonts/cm/cmbx12.pfb></usr/local/texlive/2019/texmf-dist/fonts/type1/pu
@@ -167,7 +167,7 @@ ic/amsfonts/cm/cmr12.pfb></usr/local/texlive/2019/texmf-dist/fonts/type1/public
 /amsfonts/cm/cmr6.pfb></usr/local/texlive/2019/texmf-dist/fonts/type1/public/am
 sfonts/cm/cmr9.pfb></usr/local/texlive/2019/texmf-dist/fonts/type1/public/amsfo
 nts/cm/cmsy9.pfb>
-Output written on SOProject.pdf (7 pages, 107119 bytes).
+Output written on SOProject.pdf (7 pages, 107321 bytes).
 PDF statistics:
  56 PDF objects out of 1000 (max. 8388607)
  39 compressed objects within 1 object stream
